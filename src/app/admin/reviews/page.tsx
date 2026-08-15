@@ -22,7 +22,7 @@ export default async function AdminReviewsPage({
   const perPage = 15;
 
   const where = status !== "ALL" ? { status } : {};
-  const [total, reviews] = await Promise.all([
+  const [total, reviews, statusCounts] = await Promise.all([
     db.review.count({ where }),
     db.review.findMany({
       where,
@@ -31,8 +31,10 @@ export default async function AdminReviewsPage({
       skip: (page - 1) * perPage,
       take: perPage,
     }),
+    db.review.groupBy({ by: ["status"], _count: true }),
   ]);
   const pages = Math.max(1, Math.ceil(total / perPage));
+  const countMap = Object.fromEntries(statusCounts.map((c) => [c.status, c._count]));
 
   async function approve(formData: FormData) {
     "use server";
@@ -50,16 +52,19 @@ export default async function AdminReviewsPage({
     <div>
       <h1 className="text-2xl font-black text-slate-800 mb-5">نظرات</h1>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
           <Link
             key={f}
             href={link({ status: f })}
-            className={`px-3.5 py-1.5 rounded-xl text-sm font-bold transition ${
+            className={`px-3.5 py-1.5 rounded-xl text-sm font-bold whitespace-nowrap transition ${
               status === f ? "bg-indigo-600 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-indigo-400"
             }`}
           >
             {f === "ALL" ? "همه" : f === "PENDING" ? "در انتظار" : f === "APPROVED" ? "تأیید شده" : "رد شده"}
+            <span className={`mr-1.5 text-xs ${status === f ? "text-indigo-100" : "text-slate-400"}`}>
+              {toFa(f === "ALL" ? total : countMap[f] ?? 0)}
+            </span>
           </Link>
         ))}
       </div>

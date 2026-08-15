@@ -7,6 +7,7 @@ import ProductGallery from "@/components/product-gallery";
 import AddToCartButton from "@/components/add-to-cart-button";
 import ReviewForm from "@/components/review-form";
 import ProductCard from "@/components/product-card";
+import WishlistButton from "@/components/wishlist-button";
 import { StarIcon, TruckIcon, ShieldIcon, ChevronIcon, CheckIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,12 @@ export default async function ProductPage({
         },
       })
     : null;
+
+  const isWishlisted = session
+    ? !!(await db.wishlistItem.findUnique({
+        where: { userId_productId: { userId: session.id, productId: product.id } },
+      }))
+    : false;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -137,6 +144,12 @@ export default async function ProductPage({
           </div>
 
           <AddToCartButton productId={product.id} stock={product.stock} />
+
+          {session && (
+            <div className="mt-3">
+              <WishlistButton productId={product.id} isWishlisted={isWishlisted} variant="page" />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 mt-5 text-xs text-slate-600">
             <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">

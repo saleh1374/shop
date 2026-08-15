@@ -325,3 +325,219 @@ export async function checkDiscount(code: string, subtotal: number) {
   const result = await applyDiscount(code, subtotal);
   return result;
 }
+
+// ---------------- علاقه‌مندی‌ها ----------------
+
+export async function toggleWishlist(productId: string) {
+  const session = await requireUser();
+  const product = await db.product.findUnique({ where: { id: productId } });
+  if (!product) return { error: "محصول یافت نشد" };
+
+  const existing = await db.wishlistItem.findUnique({
+    where: { userId_productId: { userId: session.id, productId } },
+  });
+
+  if (existing) {
+    await db.wishlistItem.delete({ where: { id: existing.id } });
+  } else {
+    await db.wishlistItem.create({ data: { userId: session.id, productId } });
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/products/${product.slug}`);
+  return { ok: true };
+}
+
+// ---------------- دفترچه آدرس ----------------
+
+export async function saveAddress(formData: FormData) {
+  const session = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  const data = {
+    title: String(formData.get("title") ?? "").trim(),
+    receiverName: String(formData.get("receiverName") ?? "").trim(),
+    receiverPhone: String(formData.get("receiverPhone") ?? "").trim(),
+    province: String(formData.get("province") ?? "").trim(),
+    city: String(formData.get("city") ?? "").trim(),
+    address: String(formData.get("address") ?? "").trim(),
+    postalCode: String(formData.get("postalCode") ?? "").trim(),
+    isDefault: formData.get("isDefault") === "on",
+  };
+
+  const schema = z.object({
+    title: z.string().min(2, "عنوان آدرس حداقل ۲ حرف باشد"),
+    receiverName: z.string().min(2, "نام گیرنده حداقل ۲ حرف باشد"),
+    receiverPhone: z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست"),
+    province: z.string().min(2, "استان را وارد کنید"),
+    city: z.string().min(2, "شهر را وارد کنید"),
+    address: z.string().min(5, "آدرس کامل وارد کنید"),
+    postalCode: z.string().regex(/^\d{10}$/, "کد پستی ۱۰ رقم است").optional().or(z.literal("")),
+    isDefault: z.boolean().default(false),
+  });
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "خطا" };
+
+  const { isDefault, ...fields } = parsed.data;
+
+  if (id) {
+    const existing = await db.address.findFirst({ where: { id, userId: session.id } });
+    if (!existing) return { error: "آدرس یافت نشد" };
+    if (isDefault) {
+      await db.address.updateMany({ where: { userId: session.id }, data: { isDefault: false } });
+    }
+    await db.address.update({ where: { id }, data: { ...fields, isDefault } });
+  } else {
+    if (isDefault) {
+      await db.address.updateMany({ where: { userId: session.id }, data: { isDefault: false } });
+    }
+    const count = await db.address.count({ where: { userId: session.id } });
+    await db.address.create({
+      data: { ...fields, userId: session.id, isDefault: isDefault || count === 0 },
+    });
+  }
+
+  revalidatePath("/account/addresses");
+  return { ok: true };
+}
+
+export async function deleteAddress(id: string) {
+  const session = await requireUser();
+  await db.address.deleteMany({ where: { id, userId: session.id } });
+  revalidatePath("/account/addresses");
+  return { ok: true };
+}
+
+export async function setDefaultAddress(id: string) {
+  const session = await requireUser();
+  const addr = await db.address.findFirst({ where: { id, userId: session.id } });
+  if (!addr) return { error: "آدرس یافت نشد" };
+  await db.$transaction([
+    db.address.updateMany({ where: { userId: session.id }, data: { isDefault: false } }),
+    db.address.update({ where: { id }, data: { isDefault: true } }),
+  ]);
+  revalidatePath("/account/addresses");
+  revalidatePath("/checkout");
+  return { ok: true };
+}
+
+// ---------------- پروفایل ----------------
+
+export async function updateProfile(formData: FormData) {
+  const session = await requireUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const phone = String(formData.get("phone") ?? "").trim();
+
+  const schema = z.object({
+    name: z.string().min(2, "نام حداقل ۲ حرف باشد"),
+    email: z.string().email("ایمیل معتبر نیست"),
+    phone: z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست (مثال: 09121234567)"),
+  });
+  const parsed = schema.safeParse({ name, email, phone });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "خطا" };
+
+  const dup = await db.user.findFirst({ where: { email: parsed.data.email, id: { not: session.id } } });
+  if (dup) return { error: "این ایمیل قبلاً ثبت شده است" };
+
+  await db.user.update({ where: { id: session.id }, data: parsed.data });
+  revalidatePath("/account");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function changePassword(formData: FormData) {
+  const session = await requireUser();
+  const current = String(formData.get("current") ?? "");
+  const next = String(formData.get("next") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (next.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
+  if (next !== confirm) return { error: "تکرار رمز جدید مطابقت ندارد" };
+
+  const user = await db.user.findUnique({ where: { id: session.id } });
+  if (!user) return { error: "کاربر یافت نشد" };
+  if (!(await bcrypt.compare(current, user.password))) return { error: "رمز فعلی اشتباه است" };
+
+  await db.user.update({ where: { id: session.id }, data: { password: await bcrypt.hash(next, 10) } });
+  return { ok: true };
+}
+
+// ---------------- نظرات من ----------------
+
+export async function deleteMyReview(id: string) {
+  const session = await requireUser();
+  await db.review.deleteMany({ where: { id, userId: session.id } });
+  revalidatePath("/account/reviews");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ---------------- سفارش: لغو و تکرار ----------------
+
+export async function cancelOrder(orderId: string) {
+  const session = await requireUser();
+  const order = await db.order.findFirst({
+    where: { id: orderId, userId: session.id },
+    include: { items: true },
+  });
+  if (!order) return { error: "سفارش یافت نشد" };
+  if (!["PENDING", "PAID"].includes(order.status)) return { error: "این سفارش قابل لغو نیست" };
+
+  await db.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
+    for (const item of order.items) {
+      if (item.productId) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+    }
+  });
+
+  revalidatePath("/", "layout");
+  revalidatePath("/account/orders");
+  revalidatePath(`/account/orders/${order.id}`);
+  return { ok: true };
+}
+
+export async function reorder(orderId: string) {
+  const session = await getSession();
+  const cartSession = await getOrCreateCartSession();
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (!order) return { error: "سفارش یافت نشد" };
+
+  for (const item of order.items) {
+    if (!item.productId) continue;
+    const product = await db.product.findUnique({ where: { id: item.productId } });
+    if (!product || !product.active || product.stock === 0) continue;
+
+    const existing = await db.cartItem.findFirst({
+      where: session
+        ? { userId: session.id, productId: item.productId }
+        : { sessionId: cartSession, productId: item.productId },
+    });
+    const qty = Math.min(item.quantity, product.stock);
+    if (existing) {
+      await db.cartItem.update({
+        where: { id: existing.id },
+        data: { quantity: Math.min(existing.quantity + qty, product.stock) },
+      });
+    } else {
+      await db.cartItem.create({
+        data: {
+          productId: item.productId,
+          quantity: qty,
+          userId: session?.id ?? null,
+          sessionId: session ? null : cartSession,
+        },
+      });
+    }
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/cart");
+}

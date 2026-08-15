@@ -172,6 +172,39 @@ async function main() {
     });
   }
 
+  console.log("ساخت آدرس‌های نمونه...");
+  await db.address.create({
+    data: {
+      userId: user.id,
+      title: "خانه",
+      receiverName: "علی رضایی",
+      receiverPhone: "09121234567",
+      province: "تهران",
+      city: "تهران",
+      address: "خیابان ولیعصر، کوچه بهار، پلاک ۱۲، واحد ۳",
+      postalCode: "1969814175",
+      isDefault: true,
+    },
+  });
+  await db.address.create({
+    data: {
+      userId: user.id,
+      title: "محل کار",
+      receiverName: "علی رضایی",
+      receiverPhone: "09121234567",
+      province: "تهران",
+      city: "کرج",
+      address: "میدان آزادی، برج تجاری، طبقه ۵",
+      postalCode: "3145698712",
+    },
+  });
+
+  console.log("ساخت علاقه‌مندی‌های نمونه...");
+  const favProducts = await db.product.findMany({ take: 3 });
+  for (const p of favProducts) {
+    await db.wishlistItem.create({ data: { userId: user.id, productId: p.id } });
+  }
+
   console.log("ساخت کدهای تخفیف...");
   await db.discountCode.createMany({
     data: [

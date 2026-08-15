@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { toFa, toToman } from "@/lib/format";
 import Image from "next/image";
 import DeleteButton from "@/components/admin-delete-button";
+import ProductFilters from "@/components/product-filters";
 import { EditIcon, PlusIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +12,27 @@ export const dynamic = "force-dynamic";
 export default async function AdminProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; category?: string; status?: string }>;
 }) {
   await requireAdmin();
   const sp = await searchParams;
   const q = sp.q;
+  const category = sp.category ?? "";
+  const status = sp.status ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
   const perPage = 15;
 
-  const where = q ? { name: { contains: q, mode: "insensitive" as const } } : {};
+  const categories = await db.category.findMany({ orderBy: { name: "asc" } });
+
+  const where = {
+    ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
+    ...(category ? { categoryId: category } : {}),
+    ...(status === "active"
+      ? { active: true }
+      : status === "inactive"
+        ? { active: false }
+        : {}),
+  };
   const [total, products] = await Promise.all([
     db.product.count({ where }),
     db.product.findMany({
@@ -32,20 +45,21 @@ export default async function AdminProductsPage({
   ]);
   const pages = Math.max(1, Math.ceil(total / perPage));
 
+  const mkHref = (extra: Record<string, string>) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (category) p.set("category", category);
+    if (status) p.set("status", status);
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return `/admin/products?${p.toString()}`;
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <h1 className="text-2xl font-black text-slate-800">محصولات ({toFa(total)})</h1>
-        <div className="flex items-center gap-2">
-          <form className="flex gap-2">
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="جستجوی محصول..."
-              className="h-10 rounded-xl border border-slate-200 px-3 text-sm w-52"
-            />
-            <button className="h-10 px-4 rounded-xl bg-slate-800 text-white text-sm font-bold">جستجو</button>
-          </form>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ProductFilters q={q} category={category} status={status} categories={categories} />
           <Link
             href="/admin/products/new"
             className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition"
@@ -120,7 +134,7 @@ export default async function AdminProductsPage({
           {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
             <Link
               key={n}
-              href={`/admin/products?page=${n}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={mkHref({ page: String(n) })}
               className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold ${
                 n === page ? "bg-indigo-600 text-white" : "bg-white border border-slate-200 text-slate-600"
               }`}

@@ -24,7 +24,7 @@ export default async function AdminOrdersPage({
     ...(q ? { OR: [{ orderNumber: { contains: q } }, { customerName: { contains: q } }, { customerPhone: { contains: q } }] } : {}),
   };
 
-  const [total, orders] = await Promise.all([
+  const [total, orders, statusCounts, sumTotal] = await Promise.all([
     db.order.count({ where }),
     db.order.findMany({
       where,
@@ -33,8 +33,11 @@ export default async function AdminOrdersPage({
       skip: (page - 1) * perPage,
       take: perPage,
     }),
+    db.order.groupBy({ by: ["status"], _count: true }),
+    db.order.aggregate({ _sum: { total: true }, where: { status: { not: "CANCELLED" } } }),
   ]);
   const pages = Math.max(1, Math.ceil(total / perPage));
+  const countMap = Object.fromEntries(statusCounts.map((c) => [c.status, c._count]));
 
   const link = (extra: Record<string, string>) => {
     const p = new URLSearchParams();
@@ -58,6 +61,9 @@ export default async function AdminOrdersPage({
             }`}
           >
             {s === "ALL" ? "همه" : orderStatusLabel(s).label}
+            <span className={`mr-1.5 text-xs ${status === s ? "text-indigo-100" : "text-slate-400"}`}>
+              {toFa(s === "ALL" ? total : countMap[s] ?? 0)}
+            </span>
           </Link>
         ))}
         <form className="mr-auto flex gap-2">
@@ -69,6 +75,15 @@ export default async function AdminOrdersPage({
           />
           <button className="h-10 px-4 rounded-xl bg-slate-800 text-white text-sm font-bold">جستجو</button>
         </form>
+      </div>
+
+      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 text-sm mb-4 flex items-center gap-4 flex-wrap">
+        <span className="font-black text-indigo-700">
+          مجموع سفارش‌های غیرلغو: {toToman(sumTotal._sum.total ?? 0)}
+        </span>
+        <span className="text-slate-500 font-bold">
+          میانگین: {toToman(Math.round((sumTotal._sum.total ?? 0) / Math.max(total, 1)))}
+        </span>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

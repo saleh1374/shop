@@ -9,9 +9,11 @@ import { toFa } from "@/lib/format";
 export default function AddToCartButton({
   productId,
   stock,
+  compact = false,
 }: {
   productId: string;
   stock: number;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -34,7 +36,9 @@ export default function AddToCartButton({
     <button
       onClick={handle}
       disabled={disabled}
-      className={`w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 transition ${
+      className={`rounded-xl font-extrabold flex items-center justify-center gap-2 transition ${
+        compact ? "h-9 px-3 text-xs" : "w-full h-12"
+      } ${
         disabled
           ? "bg-slate-200 text-slate-400 cursor-not-allowed"
           : done
@@ -44,12 +48,12 @@ export default function AddToCartButton({
     >
       {done ? (
         <>
-          <CheckIcon className="w-5 h-5" /> به سبد اضافه شد
+          <CheckIcon className="w-4 h-4" /> اضافه شد
         </>
       ) : (
         <>
-          <CartIcon className="w-5 h-5" />
-          {stock === 0 ? "ناموجود" : pending ? "در حال افزودن..." : "افزودن به سبد خرید"}
+          <CartIcon className="w-4 h-4" />
+          {stock === 0 ? "ناموجود" : pending ? "..." : compact ? "افزودن به سبد" : "افزودن به سبد خرید"}
         </>
       )}
     </button>

@@ -8,6 +8,7 @@ import {
   UserIcon,
   TagIcon,
   ArrowIcon,
+  ClockIcon,
 } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   await requireAdmin();
 
-  const [orders, paidOrders, products, users, lowStock, recentOrders, pendingReviews, todayOrders] =
+  const [orders, paidOrders, products, users, lowStock, recentOrders, pendingReviews, todayOrders, todayRevenue, pendingPaidOrders] =
     await Promise.all([
       db.order.count(),
       db.order.aggregate({ _sum: { total: true }, where: { status: { in: ["PAID", "SHIPPED", "DELIVERED"] } } }),
@@ -31,18 +32,26 @@ export default async function AdminDashboard() {
       db.order.count({
         where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
       }),
+      db.order.aggregate({
+        _sum: { total: true },
+        where: {
+          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          status: { in: ["PAID", "SHIPPED", "DELIVERED"] },
+        },
+      }),
+      db.order.count({ where: { status: "PENDING" } }),
     ]);
 
   const revenue = paidOrders._sum.total ?? 0;
-  const avg = revenue / (orders || 1);
+  const todayRev = todayRevenue._sum.total ?? 0;
 
   const stats = [
-    { label: "سفارش‌های امروز", value: toFa(todayOrders), icon: ChartIcon, color: "bg-indigo-50 text-indigo-600" },
-    { label: "کل سفارش‌ها", value: toFa(orders), icon: ChartIcon, color: "bg-blue-50 text-blue-600" },
-    { label: "فروش (تومان)", value: toFa(Math.round(revenue).toLocaleString("en-US")), icon: TagIcon, color: "bg-emerald-50 text-emerald-600" },
-    { label: "محصولات", value: toFa(products), icon: BoxIcon, color: "bg-violet-50 text-violet-600" },
-    { label: "کاربران", value: toFa(users), icon: UserIcon, color: "bg-amber-50 text-amber-600" },
-    { label: "میانگین هر سفارش", value: toFa(Math.round(avg).toLocaleString("en-US")), icon: ChartIcon, color: "bg-rose-50 text-rose-600" },
+    { label: "فروش امروز", value: toFa(Math.round(todayRev).toLocaleString("en-US")), icon: ChartIcon, color: "bg-indigo-50 text-indigo-600", href: "/admin/reports" },
+    { label: "سفارش‌های امروز", value: toFa(todayOrders), icon: ChartIcon, color: "bg-blue-50 text-blue-600", href: "/admin/orders" },
+    { label: "در انتظار پرداخت", value: toFa(pendingPaidOrders), icon: ClockIcon, color: "bg-amber-50 text-amber-600", href: "/admin/orders?status=PENDING" },
+    { label: "فروش کل", value: toFa(Math.round(revenue).toLocaleString("en-US")), icon: TagIcon, color: "bg-emerald-50 text-emerald-600", href: "/admin/reports" },
+    { label: "محصولات", value: toFa(products), icon: BoxIcon, color: "bg-violet-50 text-violet-600", href: "/admin/products" },
+    { label: "کاربران", value: toFa(users), icon: UserIcon, color: "bg-amber-50 text-amber-600", href: "/admin/users" },
   ];
 
   return (
@@ -61,13 +70,17 @@ export default async function AdminDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {stats.map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl border border-slate-200 p-4">
+          <Link
+            key={s.label}
+            href={s.href}
+            className="bg-white rounded-2xl border border-slate-200 p-4 hover:border-indigo-300 hover:shadow-md transition group"
+          >
             <span className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
               <s.icon className="w-5 h-5" />
             </span>
             <div className="text-lg font-black text-slate-800 leading-7">{s.value}</div>
-            <div className="text-xs text-slate-500 mt-1">{s.label}</div>
-          </div>
+            <div className="text-xs text-slate-500 mt-1 group-hover:text-indigo-600">{s.label}</div>
+          </Link>
         ))}
       </div>
 

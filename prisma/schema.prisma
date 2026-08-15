@@ -33,8 +33,39 @@ model User {
   orders    Order[]
   reviews   Review[]
   cartItems CartItem[]
+  wishlist  WishlistItem[]
+  addresses Address[]
 
   @@index([role])
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String // نام آدرس (مثلاً: خانه، محل کار)
+  receiverName String
+  receiverPhone String
+  province     String
+  city         String
+  address      String
+  postalCode   String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
 }
 
 model Category {
@@ -68,6 +99,7 @@ model Product {
   reviews     Review[]
   orderItems  OrderItem[]
   cartItems   CartItem[]
+  wishlist    WishlistItem[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 

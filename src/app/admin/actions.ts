@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, getSession } from "@/lib/auth";
 import { toSlug } from "@/lib/format";
 import { setSetting } from "@/lib/settings";
 import type { OrderStatus } from "@/generated/prisma/enums";
@@ -234,5 +234,29 @@ export async function deleteAllData() {
     db.discountCode.deleteMany(),
   ]);
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ---------------- کاربران ----------------
+
+export async function updateUserRole(userId: string, role: string) {
+  await guard();
+  const admin = await getSession();
+  if (!admin || admin.id === userId) return { error: "نمی‌توانید نقش خودتان را تغییر دهید" };
+  if (role !== "USER" && role !== "ADMIN") return { error: "نقش نامعتبر است" };
+  await db.user.update({ where: { id: userId }, data: { role: role as "USER" | "ADMIN" } });
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+export async function deleteUser(userId: string) {
+  await guard();
+  const admin = await getSession();
+  if (!admin || admin.id === userId) return { error: "نمی‌توانید خودتان را حذف کنید" };
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: "کاربر یافت نشد" };
+  if (user.role === "ADMIN") return { error: "کاربر ادمین قابل حذف نیست" };
+  await db.user.delete({ where: { id: userId } });
+  revalidatePath("/admin/users");
   return { ok: true };
 }

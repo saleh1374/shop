@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCart } from "@/lib/cart";
 import { getCurrentUser } from "@/lib/auth";
 import { toFa, toToman } from "@/lib/format";
+import { db } from "@/lib/db";
 import CheckoutForm from "@/components/checkout-form";
 import { CartIcon } from "@/components/icons";
 
@@ -14,12 +15,19 @@ export default async function CheckoutPage() {
 
   if (items.length === 0) redirect("/cart");
 
+  const addresses = user
+    ? await db.address.findMany({
+        where: { userId: user.id },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+      })
+    : [];
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-black text-slate-800 mb-6">تسویه حساب</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <CheckoutForm subtotal={subtotal} isLoggedIn={!!user} user={user} />
+          <CheckoutForm subtotal={subtotal} isLoggedIn={!!user} user={user} addresses={addresses} />
         </div>
 
         <aside className="hidden lg:block">

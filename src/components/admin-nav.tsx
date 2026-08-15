@@ -10,6 +10,8 @@ import {
   CommentIcon,
   SettingsIcon,
   ChartIcon,
+  UsersIcon,
+  MoneyIcon,
 } from "@/components/icons";
 
 const links = [
@@ -17,6 +19,8 @@ const links = [
   { href: "/admin/products", label: "محصولات", icon: BoxIcon },
   { href: "/admin/categories", label: "دسته‌بندی‌ها", icon: FolderIcon },
   { href: "/admin/orders", label: "سفارش‌ها", icon: ChartIcon },
+  { href: "/admin/users", label: "کاربران", icon: UsersIcon },
+  { href: "/admin/reports", label: "گزارش‌ها", icon: MoneyIcon },
   { href: "/admin/discounts", label: "کد تخفیف", icon: TagIcon },
   { href: "/admin/reviews", label: "نظرات", icon: CommentIcon },
   { href: "/admin/settings", label: "تنظیمات", icon: SettingsIcon },

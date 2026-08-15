@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
+import OrderActions from "@/components/order-actions";
 import { ChevronIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +80,10 @@ export default async function OrderDetailPage({
             این سفارش لغو شده است.
           </div>
         )}
+
+        <div className="mt-5">
+          <OrderActions orderId={order.id} status={order.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">

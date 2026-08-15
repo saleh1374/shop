@@ -10,10 +10,21 @@ export default function CheckoutForm({
   subtotal,
   isLoggedIn,
   user,
+  addresses = [],
 }: {
   subtotal: number;
   isLoggedIn: boolean;
-  user: { name?: string; email?: string; phone?: string } | null;
+  user: { name?: string; email?: string; phone?: string | null } | null;
+  addresses?: {
+    id: string;
+    title: string;
+    receiverName: string;
+    receiverPhone: string;
+    province: string;
+    city: string;
+    address: string;
+    postalCode: string | null;
+  }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -21,6 +32,28 @@ export default function CheckoutForm({
   const [discountCode, setDiscountCode] = useState("");
   const [discount, setDiscount] = useState<{ ok: boolean; amount: number; description?: string; error?: string }>({ ok: true, amount: 0 });
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
+  const [form, setForm] = useState({
+    name: user?.name ?? "",
+    phone: user?.phone ?? "",
+    email: user?.email ?? "",
+    address: "",
+    note: "",
+  });
+
+  function selectAddress(addrId: string) {
+    const addr = addresses.find((a) => a.id === addrId);
+    if (!addr) return;
+    setForm((f) => ({
+      ...f,
+      name: addr.receiverName,
+      phone: addr.receiverPhone,
+      address: `${addr.province}، ${addr.city}، ${addr.address}${addr.postalCode ? ` — کد پستی: ${addr.postalCode}` : ""}`,
+    }));
+  }
+
+  function setField(k: keyof typeof form, v: string) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
 
   async function applyCode() {
     if (!discountCode.trim()) return;
@@ -32,14 +65,13 @@ export default function CheckoutForm({
   function handle(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-    const form = new FormData(e.currentTarget);
     startTransition(async () => {
       const res = await createOrder({
-        name: String(form.get("name") ?? ""),
-        phone: String(form.get("phone") ?? ""),
-        email: String(form.get("email") ?? ""),
-        address: String(form.get("address") ?? ""),
-        note: String(form.get("note") ?? ""),
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+        note: form.note,
         discountCode,
         paymentMethod,
       });
@@ -55,6 +87,25 @@ export default function CheckoutForm({
     <form onSubmit={handle} className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <h2 className="font-black text-slate-800 mb-4">اطلاعات گیرنده</h2>
+        {addresses.length > 0 && (
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">
+              آدرس‌های ذخیره‌شده
+            </label>
+            <select
+              onChange={(e) => e.target.value && selectAddress(e.target.value)}
+              defaultValue=""
+              className={inputCls}
+            >
+              <option value="">انتخاب از آدرس‌های ذخیره‌شده...</option>
+              {addresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.title} — {a.receiverName} — {a.province}، {a.city}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">
@@ -62,7 +113,8 @@ export default function CheckoutForm({
             </label>
             <input
               name="name"
-              defaultValue={user?.name ?? ""}
+              value={form.name}
+              onChange={(e) => setField("name", e.target.value)}
               required
               minLength={3}
               className={inputCls}
@@ -75,7 +127,8 @@ export default function CheckoutForm({
             </label>
             <input
               name="phone"
-              defaultValue={user?.phone ?? ""}
+              value={form.phone}
+              onChange={(e) => setField("phone", e.target.value)}
               required
               pattern="09[0-9]{9}"
               className={inputCls}
@@ -87,7 +140,8 @@ export default function CheckoutForm({
             <label className="block text-xs font-bold text-slate-600 mb-1.5">ایمیل</label>
             <input
               name="email"
-              defaultValue={user?.email ?? ""}
+              value={form.email}
+              onChange={(e) => setField("email", e.target.value)}
               type="email"
               className={inputCls}
               placeholder="example@email.com"
@@ -98,6 +152,8 @@ export default function CheckoutForm({
             <label className="block text-xs font-bold text-slate-600 mb-1.5">آدرس</label>
             <textarea
               name="address"
+              value={form.address}
+              onChange={(e) => setField("address", e.target.value)}
               rows={2}
               className={`${inputCls} h-auto py-2.5 resize-none`}
               placeholder="استان، شهر، خیابان، پلاک، واحد"
@@ -107,6 +163,8 @@ export default function CheckoutForm({
             <label className="block text-xs font-bold text-slate-600 mb-1.5">توضیحات سفارش</label>
             <input
               name="note"
+              value={form.note}
+              onChange={(e) => setField("note", e.target.value)}
               className={inputCls}
               placeholder="مثلاً: تحویل بعد از ساعت ۶ عصر"
             />

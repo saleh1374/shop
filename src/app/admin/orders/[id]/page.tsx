@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
 import OrderStatusControl from "@/components/order-status-control";
+import PrintButton from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -21,19 +22,61 @@ export default async function AdminOrderDetailPage({
   if (!order) notFound();
 
   const st = orderStatusLabel(order.status);
+  const steps = ["PENDING", "PAID", "SHIPPED", "DELIVERED"];
+  const currentIdx = steps.indexOf(order.status);
+  const cancelled = order.status === "CANCELLED";
 
   return (
     <div>
-      <Link href="/admin/orders" className="text-sm text-slate-500 hover:text-indigo-600 mb-4 inline-block">
+      <Link href="/admin/orders" className="text-sm text-slate-500 hover:text-indigo-600 mb-4 inline-block no-print">
         ← بازگشت به سفارش‌ها
       </Link>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <h1 className="text-2xl font-black text-slate-800">سفارش #{toFa(order.orderNumber)}</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 no-print">
+          <PrintButton />
           <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${st.color}`}>{st.label}</span>
           <OrderStatusControl orderId={order.id} status={order.status} />
         </div>
       </div>
+
+      {!cancelled ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+          <div className="flex items-center">
+            {steps.map((s, i) => {
+              const done = i <= currentIdx;
+              const labels = ["ثبت سفارش", "پرداخت", "ارسال", "تحویل"];
+              return (
+                <div key={s} className="flex items-center flex-1 last:flex-none">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition ${
+                        done ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {toFa(i + 1)}
+                    </span>
+                    <span className={`text-[11px] mt-1.5 ${done ? "text-indigo-600 font-bold" : "text-slate-400"}`}>
+                      {labels[i]}
+                    </span>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div
+                      className={`flex-1 h-0.5 mx-2 mb-5 rounded ${
+                        i < currentIdx ? "bg-indigo-600" : "bg-slate-100"
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm mb-6">
+          این سفارش لغو شده است.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
