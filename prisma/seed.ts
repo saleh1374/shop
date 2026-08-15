@@ -138,6 +138,7 @@ async function main() {
     data: {
       name: "مدیر فروشگاه",
       email: "admin@shop.ir",
+      phone: "09121112233",
       password: await bcrypt.hash("admin123", 10),
       role: "ADMIN",
     },

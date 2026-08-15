@@ -53,12 +53,22 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
 export async function requireUser() {
   const session = await getSession();
   if (!session) redirect("/account/login?next=/account");
+  const exists = await db.user.findUnique({
+    where: { id: session.id },
+    select: { id: true },
+  });
+  if (!exists) redirect("/account/login?next=/account");
   return session;
 }
 
 export async function requireAdmin() {
   const session = await getSession();
   if (!session || session.role !== "ADMIN") redirect("/account/login?next=/admin");
+  const exists = await db.user.findUnique({
+    where: { id: session.id },
+    select: { id: true, role: true },
+  });
+  if (!exists || exists.role !== "ADMIN") redirect("/account/login?next=/admin");
   return session;
 }
 
