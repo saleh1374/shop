@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -24,14 +22,18 @@
 .DS_Store
 *.pem
 
-# debug
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
+server.log
+server.err.log
 
-# env files (can opt-in for committing if needed)
+# env files — فایل تنظیمات محلی هرگز در گیت نرود (حاوی رمز دیتابیس و رازها)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,4 +42,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma client تولیدشده (با prisma generate ساخته میشود)
 /src/generated/prisma
+
+# فایلهای آپلودی (عکس محصولات و… دادهٔ کاربر هستند، نه کد)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# ابزارهای محلی هوش مصنوعی و فایلهای موقت
+/.agents
+/.claude
+/.windsurf
+skills-lock.json
+debug-*.mjs
+*.tmp
