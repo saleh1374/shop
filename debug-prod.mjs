@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto("http://localhost:3000/products");
+await page.waitForLoadState("networkidle");
+const links = await page.locator("a[href*='/products/']").all();
+console.log("link count:", links.length);
+const first = links[0];
+console.log("first href:", await first.getAttribute("href"));
+await first.click();
+await page.waitForTimeout(4000);
+console.log("URL after click:", page.url());
+const body = await page.textContent("body");
+console.log("body has gallery:", body.includes("گالری") || body.includes("افزودن"));
+await browser.close();

@@ -1,0 +1,130 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { requireAdmin } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
+import OrderStatusControl from "@/components/order-status-control";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminOrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  await requireAdmin();
+  const { id } = await params;
+  const order = await db.order.findUnique({
+    where: { id },
+    include: { items: { include: { product: { select: { slug: true } } } }, user: { select: { name: true, email: true } } },
+  });
+  if (!order) notFound();
+
+  const st = orderStatusLabel(order.status);
+
+  return (
+    <div>
+      <Link href="/admin/orders" className="text-sm text-slate-500 hover:text-indigo-600 mb-4 inline-block">
+        ← بازگشت به سفارش‌ها
+      </Link>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <h1 className="text-2xl font-black text-slate-800">سفارش #{toFa(order.orderNumber)}</h1>
+        <div className="flex items-center gap-3">
+          <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${st.color}`}>{st.label}</span>
+          <OrderStatusControl orderId={order.id} status={order.status} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-5">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 className="font-black text-slate-800 mb-3">اقلام سفارش</h2>
+            <div className="space-y-2">
+              {order.items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <div className="text-sm font-bold text-slate-800">{item.productName}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">قیمت لحظه خرید: {toToman(item.price)}</div>
+                  </div>
+                  <div className="text-sm font-extrabold text-slate-700">
+                    {toFa(item.quantity)} × {toToman(item.price)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 border-t border-dashed border-slate-200 pt-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">جمع کالاها</span><span className="font-bold">{toToman(order.subtotal)}</span></div>
+              {order.discount > 0 && (
+                <div className="flex justify-between text-emerald-600"><span>تخفیف</span><span className="font-bold">− {toToman(order.discount)}</span></div>
+              )}
+              <div className="flex justify-between"><span className="text-slate-500">هزینه ارسال</span><span className="font-bold text-emerald-600">رایگان</span></div>
+              <div className="flex justify-between">
+                <span className="font-black">مبلغ نهایی</span>
+                <span className="text-xl font-black text-indigo-700">{toToman(order.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 className="font-black text-slate-800 mb-3">اطلاعات پرداخت</h2>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-xs text-slate-400 mb-1">درگاه</div>
+                <div className="font-bold">
+                  {order.paymentGateway === "cod" ? "پرداخت در محل" : order.paymentGateway === "simulation" ? "آزمایشی (پیش‌فرض)" : order.paymentGateway}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 mb-1">کد پیگیری</div>
+                <div className="font-bold" dir="ltr">{order.paymentRef ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400 mb-1">تاریخ ثبت</div>
+                <div className="font-bold">{formatDateTime(order.createdAt)}</div>
+              </div>
+              {order.user && (
+                <div>
+                  <div className="text-xs text-slate-400 mb-1">حساب کاربری</div>
+                  <div className="font-bold">{order.user.name} ({order.user.email})</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 h-fit">
+          <h2 className="font-black text-slate-800 mb-3">اطلاعات گیرنده</h2>
+          <div className="space-y-3 text-sm">
+            <div>
+              <div className="text-xs text-slate-400 mb-1">نام</div>
+              <div className="font-bold">{order.customerName}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-400 mb-1">موبایل</div>
+              <div className="font-bold" dir="ltr">{order.customerPhone}</div>
+            </div>
+            {order.customerEmail && (
+              <div>
+                <div className="text-xs text-slate-400 mb-1">ایمیل</div>
+                <div className="font-bold" dir="ltr">{order.customerEmail}</div>
+              </div>
+            )}
+            {order.address && (
+              <div>
+                <div className="text-xs text-slate-400 mb-1">آدرس</div>
+                <div className="font-bold leading-6">{order.address}</div>
+              </div>
+            )}
+            {order.note && (
+              <div>
+                <div className="text-xs text-slate-400 mb-1">توضیحات</div>
+                <div className="font-bold leading-6">{order.note}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
