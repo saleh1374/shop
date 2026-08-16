@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { saveSettings } from "@/app/admin/actions";
 import { getActiveGateway, gatewayOptions, getPaymentSettings } from "@/lib/payment";
 import { CreditCardIcon, ShieldIcon, InfoIcon, MailIcon } from "@/components/icons";
+import TestEmailButton from "@/components/test-email-button";
 
 export const dynamic = "force-dynamic";
 
@@ -155,6 +156,7 @@ export default async function AdminSettingsPage() {
               <input name="store_url" defaultValue={s.store_url ?? "http://localhost:3000"} className={inputCls} dir="ltr" placeholder="https://shop.ir" />
             </div>
           </div>
+          <TestEmailButton />
         </div>
 
         <button
