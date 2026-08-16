@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  let baseUrl = "https://example.com";
+  let baseUrl = "http://localhost:3000";
   let products: { slug: string; updatedAt: Date }[] = [];
   let categories: { slug: string }[] = [];
 

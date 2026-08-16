@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin, getSession } from "@/lib/auth";
@@ -225,6 +224,8 @@ export async function saveSettings(formData: FormData) {
   const keys = [
     "store_name",
     "store_description",
+    "store_url",
+    "store_email",
     "phone",
     "email",
     "address",
@@ -232,6 +233,10 @@ export async function saveSettings(formData: FormData) {
     "telegram",
     "enamad_code",
     "zarinpal_merchant",
+    "smtp_host",
+    "smtp_port",
+    "smtp_user",
+    "smtp_pass",
   ];
   for (const key of keys) {
     await setSetting(key, String(formData.get(key) ?? ""));
@@ -278,4 +283,70 @@ export async function deleteUser(userId: string) {
   await db.user.delete({ where: { id: userId } });
   revalidatePath("/admin/users");
   return { ok: true };
+}
+
+// ---------------- عملیات دسته‌ای ----------------
+
+export async function bulkDeleteProducts(ids: string[]) {
+  await guard();
+  if (!ids.length || ids.length > 100) return { error: "تعداد آیتم‌ها نامعتبر است" };
+  await db.product.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/admin/products");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function bulkToggleProducts(ids: string[], active: boolean) {
+  await guard();
+  if (!ids.length || ids.length > 100) return { error: "تعداد آیتم‌ها نامعتبر است" };
+  await db.product.updateMany({ where: { id: { in: ids } }, data: { active } });
+  revalidatePath("/admin/products");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function bulkUpdateOrderStatus(ids: string[], status: string) {
+  await guard();
+  const allowed: OrderStatus[] = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"];
+  if (!allowed.includes(status as OrderStatus)) return { error: "وضعیت نامعتبر است" };
+  if (!ids.length || ids.length > 100) return { error: "تعداد آیتم‌ها نامعتبر است" };
+  await db.order.updateMany({ where: { id: { in: ids } }, data: { status: status as OrderStatus } });
+  revalidatePath("/admin/orders");
+  return { ok: true };
+}
+
+// ---------------- لغو خودکار سفارشات معلول ----------------
+
+const COD_CANCEL_HOURS = 24;
+
+export async function cancelStaleCodOrders() {
+  await guard();
+  const cutoff = new Date(Date.now() - COD_CANCEL_HOURS * 60 * 60 * 1000);
+  const staleOrders = await db.order.findMany({
+    where: {
+      status: "PENDING",
+      paymentGateway: "cod",
+      createdAt: { lt: cutoff },
+    },
+    include: { items: true },
+  });
+
+  for (const order of staleOrders) {
+    await db.$transaction(async (tx) => {
+      await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
+      for (const item of order.items) {
+        if (item.productId) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+    });
+    if (order.userId) {
+      await notify(order.userId, "سفارش لغو شد ❌", `سفارش #${order.orderNumber} به دلیل عدم تأیید ظرف ${COD_CANCEL_HOURS} ساعت لغو شد.`, "STATUS", order.id);
+    }
+  }
+  revalidatePath("/admin/orders");
+  return { ok: true, cancelled: staleOrders.length };
 }

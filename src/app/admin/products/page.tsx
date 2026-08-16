@@ -5,6 +5,7 @@ import { toFa, toToman } from "@/lib/format";
 import Image from "next/image";
 import DeleteButton from "@/components/admin-delete-button";
 import ProductFilters from "@/components/product-filters";
+import BulkActionsWrapper from "@/components/bulk-actions-wrapper";
 import { EditIcon, PlusIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -69,10 +70,18 @@ export default async function AdminProductsPage({
         </div>
       </div>
 
+      <BulkActionsWrapper
+        ids={products.map((p) => p.id)}
+        action="product"
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-xs">
+              <th className="text-center p-4 w-10">
+                <input type="checkbox" className="bulk-toggle w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+              </th>
               <th className="text-right p-4 font-bold">محصول</th>
               <th className="text-right p-4 font-bold hidden md:table-cell">دسته</th>
               <th className="text-right p-4 font-bold">قیمت</th>
@@ -84,6 +93,13 @@ export default async function AdminProductsPage({
           <tbody>
             {products.map((p) => (
               <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                <td className="p-4 text-center">
+                  <input
+                    type="checkbox"
+                    value={p.id}
+                    className="bulk-item w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </td>
                 <td className="p-4">
                   <Link href={`/admin/products/${p.id}/edit`} className="flex items-center gap-3">
                     <span className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0">

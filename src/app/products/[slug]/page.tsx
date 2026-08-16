@@ -14,6 +14,7 @@ import ShareButton from "@/components/share-button";
 import JsonLd from "@/components/json-ld";
 import ProductTabs from "@/components/product-tabs";
 import ReviewBreakdown from "@/components/review-breakdown";
+import ViewTracker from "@/components/view-tracker";
 import { StarIcon, TruckIcon, ShieldIcon, ChevronIcon, CheckIcon, ClockIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -74,8 +75,6 @@ export default async function ProductPage({
 
   if (!product || !product.active) notFound();
 
-  await db.product.update({ where: { id: product.id }, data: { views: { increment: 1 } } });
-
   const session = await getSession();
   const s = await getSettings();
   const storeName = setting(s, "store_name", "فروشگاه");
@@ -124,6 +123,7 @@ export default async function ProductPage({
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      <ViewTracker productId={product.id} />
       <JsonLd
         data={{
           "@context": "https://schema.org",

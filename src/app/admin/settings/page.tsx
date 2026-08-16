@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { saveSettings } from "@/app/admin/actions";
 import { getActiveGateway, gatewayOptions, getPaymentSettings } from "@/lib/payment";
-import { CreditCardIcon, ShieldIcon, InfoIcon } from "@/components/icons";
+import { CreditCardIcon, ShieldIcon, InfoIcon, MailIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +118,43 @@ export default async function AdminSettingsPage() {
             dir="ltr"
             placeholder={`<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=...'>...</a>`}
           />
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
+          <h2 className="font-black text-slate-800 mb-1 flex items-center gap-2">
+            <MailIcon className="w-5 h-5 text-indigo-600" /> تنظیمات ایمیل (SMTP)
+          </h2>
+          <p className="text-xs text-slate-400 mb-4">
+            برای ارسال ایمیل (بازیابی رمز، تأیید سفارش و...) سرور SMTP خود را تنظیم کنید.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>هاست SMTP</label>
+              <input name="smtp_host" defaultValue={s.smtp_host ?? ""} className={inputCls} dir="ltr" placeholder="smtp.gmail.com" />
+            </div>
+            <div>
+              <label className={labelCls}>پورت</label>
+              <input name="smtp_port" defaultValue={s.smtp_port ?? "465"} className={inputCls} dir="ltr" placeholder="465" />
+            </div>
+            <div>
+              <label className={labelCls}>نام کاربری</label>
+              <input name="smtp_user" defaultValue={s.smtp_user ?? ""} className={inputCls} dir="ltr" placeholder="you@gmail.com" />
+            </div>
+            <div>
+              <label className={labelCls}>رمز عبور</label>
+              <input name="smtp_pass" type="password" defaultValue={s.smtp_pass ?? ""} className={inputCls} dir="ltr" />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>آدرس ایمیل فروشگاه</label>
+              <input name="store_email" defaultValue={s.store_email ?? ""} className={inputCls} dir="ltr" placeholder="info@shop.ir" />
+            </div>
+            <div>
+              <label className={labelCls}>آدرس سایت (برای نقشه سایت)</label>
+              <input name="store_url" defaultValue={s.store_url ?? "http://localhost:3000"} className={inputCls} dir="ltr" placeholder="https://shop.ir" />
+            </div>
+          </div>
         </div>
 
         <button

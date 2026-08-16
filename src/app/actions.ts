@@ -17,6 +17,9 @@ import { notify, notifyAdmins } from "@/lib/notify";
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 5 * 60_000;
 
+// Rate limiting برای ریست رمز (حافظه سراسری در یک پروسه)
+const resetAttempts = new Map<string, { count: number; resetAt: number }>();
+
 async function getLoginState(email: string): Promise<{ count: number; lockedUntil: number }> {
   const row = await db.setting.findUnique({ where: { key: `login_fail:${email}` } });
   if (!row) return { count: 0, lockedUntil: 0 };
@@ -95,11 +98,18 @@ export async function addToCart(productId: string, quantity = 1) {
 }
 
 export async function updateCartItem(itemId: string, quantity: number) {
+  const session = await getSession();
+  const cartSession = await getCartSession();
   const item = await db.cartItem.findUnique({
     where: { id: itemId },
     include: { product: true },
   });
   if (!item) return { error: "آیتم یافت نشد" };
+
+  // بررسی مالکیت: آیتم باید متعلق به کاربر فعلی یا سبد ناشناس باشد
+  const isOwner = (session && item.userId === session.id) || (!session && item.sessionId === cartSession);
+  if (!isOwner) return { error: "دسترسی غیرمجاز" };
+
   const qty = Math.max(1, Math.min(quantity, item.product.stock));
   await db.cartItem.update({ where: { id: itemId }, data: { quantity: qty } });
   revalidatePath("/", "layout");
@@ -107,6 +117,15 @@ export async function updateCartItem(itemId: string, quantity: number) {
 }
 
 export async function removeCartItem(itemId: string) {
+  const session = await getSession();
+  const cartSession = await getCartSession();
+  const item = await db.cartItem.findUnique({ where: { id: itemId } });
+  if (!item) return { error: "آیتم یافت نشد" };
+
+  // بررسی مالکیت
+  const isOwner = (session && item.userId === session.id) || (!session && item.sessionId === cartSession);
+  if (!isOwner) return { error: "دسترسی غیرمجاز" };
+
   await db.cartItem.delete({ where: { id: itemId } });
   revalidatePath("/", "layout");
   return { ok: true };
@@ -352,12 +371,17 @@ export async function createOrder(input: OrderInput) {
 
   // کاهش موجودی (برای پرداخت در محل همین حالا، برای آنلاین بعد از پرداخت)
   if (isCod) {
-    for (const item of cartItems) {
-      await db.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
-    }
+    await db.$transaction(async (tx) => {
+      for (const item of cartItems) {
+        const updated = await tx.$executeRaw`
+          UPDATE "Product" SET stock = stock - ${item.quantity}
+          WHERE id = ${item.productId}::text AND stock >= ${item.quantity}
+        `;
+        if (updated === 0) {
+          throw new Error(`موجودی «${item.product.name}» کافی نیست`);
+        }
+      }
+    });
   }
 
   revalidatePath("/", "layout");
@@ -386,15 +410,26 @@ export async function payOrder(orderId: string) {
     data: { status: "PAID", paymentRef: result.ref },
   });
 
-  // کاهش موجودی
-  for (const item of order.items) {
-    if (item.productId) {
-      await db.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
+  // کاهش موجودی با تراکنش اتمیک برای جلوگیری از race condition
+  await db.$transaction(async (tx) => {
+    for (const item of order.items) {
+      if (item.productId) {
+        // ابتدا بررسی موجودی کافی
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product || product.stock < item.quantity) {
+          throw new Error(`موجودی «${item.productName}» کافی نیست`);
+        }
+        // کاهش اتمیک با شرط
+        const updated = await tx.$executeRaw`
+          UPDATE "Product" SET stock = stock - ${item.quantity}
+          WHERE id = ${item.productId}::text AND stock >= ${item.quantity}
+        `;
+        if (updated === 0) {
+          throw new Error(`موجودی «${item.productName}» کافی نیست`);
+        }
+      }
     }
-  }
+  });
 
   if (order.userId) {
     await notify(
@@ -686,7 +721,7 @@ export async function resetPasswordRequest(email: string) {
   // همیشه پیام موفقیت نشان بده (برای جلوگیری از enumerate emails)
   if (!user) return { ok: true, message: "اگر ایمیل شما در سیستم ثبت شده باشد، کد بازیابی ارسال شد." };
 
-  const token = crypto.randomUUID().slice(0, 8).toUpperCase();
+  const token = crypto.randomUUID().replace(/-/g, "").slice(0, 32).toUpperCase();
   const expires = Date.now() + 15 * 60_000; // ۱۵ دقیقه
 
   await db.setting.upsert({
@@ -695,13 +730,32 @@ export async function resetPasswordRequest(email: string) {
     create: { key: `reset_token:${user.id}`, value: JSON.stringify({ token, expires }) },
   });
 
+  // ارسال ایمیل با کد بازیابی
+  const { sendEmail, resetPasswordEmailHtml } = await import("@/lib/email");
+  await sendEmail(user.email, "بازیابی رمز عبور", resetPasswordEmailHtml(user.name, token));
+
   // در نسخه واقعی: ارسال ایمیل با nodemailer
-  // فعلاً توکن را برمی‌گردانیم تا بتوانیم تست کنیم
-  return { ok: true, message: "کد بازیابی ارسال شد.", token };
+  // فعلاً فقط پیام موفقیت برمی‌گردانیم (توکن هرگز به مرورگر فرستاده نمی‌شود)
+  return { ok: true, message: "کد بازیابی ارسال شد." };
 }
 
 export async function resetPasswordConfirm(token: string, newPassword: string) {
   if (newPassword.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
+
+  // Rate limiting (حافظه سراسری در یک پروسه)
+  const RATE_LIMIT = 5;
+  const RATE_WINDOW = 60_000;
+  const key = `reset_attempt:${token.slice(0, 8)}`;
+  const now = Date.now();
+  const entry = resetAttempts.get(key);
+  if (entry && now <= entry.resetAt && entry.count >= RATE_LIMIT) {
+    return { error: "تعداد تلاش‌ها زیاد است. لطفاً ۱ دقیقه صبر کنید." };
+  }
+  if (!entry || now > entry.resetAt) {
+    resetAttempts.set(key, { count: 1, resetAt: now + RATE_WINDOW });
+  } else {
+    entry.count++;
+  }
 
   // جستجو در تمام setting های reset_token
   const rows = await db.setting.findMany({

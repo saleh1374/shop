@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/svg+xml", "image/gif"];
+const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 // Rate limiting ساده (حافظه درون‌进程ی)
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "فایلی ارسال نشده است" }, { status: 400 });
   }
   if (!ALLOWED.includes(file.type)) {
-    return NextResponse.json({ error: "فرمت فایل مجاز نیست (jpg, png, webp, svg, gif)" }, { status: 400 });
+    return NextResponse.json({ error: "فرمت فایل مجاز نیست (jpg, png, webp, gif)" }, { status: 400 });
   }
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: "حجم فایل حداکثر ۵ مگابایت است" }, { status: 400 });
