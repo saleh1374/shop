@@ -210,7 +210,7 @@ export async function loginUser(formData: FormData) {
     return { error: `تلاش‌های ناموفق زیاد بود. لطفاً ۵ دقیقه دیگر دوباره امتحان کنید.` };
 
   const user = await db.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
     const count = state.count + 1;
     if (count >= LOGIN_MAX_ATTEMPTS) {
       await setLoginState(email, { count: 0, lockedUntil: Date.now() + LOGIN_LOCK_MS });
@@ -625,6 +625,7 @@ export async function changePassword(formData: FormData) {
 
   const user = await db.user.findUnique({ where: { id: session.id } });
   if (!user) return { error: "کاربر یافت نشد" };
+  if (!user.password) return { error: "حساب شما با گوگل ساخته شده. رمز عبور قابل تغییر نیست." };
   if (!(await bcrypt.compare(current, user.password))) return { error: "رمز فعلی اشتباه است" };
 
   await db.user.update({ where: { id: session.id }, data: { password: await bcrypt.hash(newPassword, 10) } });
