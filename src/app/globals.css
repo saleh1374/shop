@@ -47,3 +47,7 @@ textarea:focus {
     background: #fff;
   }
 }
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

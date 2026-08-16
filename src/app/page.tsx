@@ -27,7 +27,10 @@ export default async function HomePage() {
     }),
     db.category.findMany({
       where: { parentId: null },
-      include: { products: { select: { id: true } } },
+      include: {
+        children: { include: { products: { select: { id: true } } } },
+        products: { select: { id: true } },
+      },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -80,20 +83,23 @@ export default async function HomePage() {
       <section className="max-w-7xl mx-auto px-4 py-10">
         <h2 className="text-xl font-black text-slate-800 mb-4">دسته‌بندی محصولات</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {categories.map((c) => (
-            <Link
-              key={c.id}
-              href={`/products?category=${c.slug}`}
-              className="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-indigo-400 hover:shadow-md transition group"
-            >
-              <div className="font-bold text-sm text-slate-700 group-hover:text-indigo-700 transition">
-                {c.name}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                {toFa(c.products.length)} محصول
-              </div>
-            </Link>
-          ))}
+          {categories.map((c) => {
+            const totalProducts = c.products.length + c.children.reduce((sum, ch) => sum + ch.products.length, 0);
+            return (
+              <Link
+                key={c.id}
+                href={`/products?category=${c.slug}`}
+                className="bg-white border border-slate-200 rounded-2xl p-4 text-center hover:border-indigo-400 hover:shadow-md transition group"
+              >
+                <div className="font-bold text-sm text-slate-700 group-hover:text-indigo-700 transition">
+                  {c.name}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  {toFa(totalProducts)} محصول
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 

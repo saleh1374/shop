@@ -13,6 +13,7 @@ export async function ProductsGrid({
   min,
   max,
   page,
+  view = "grid",
 }: {
   category?: string;
   q?: string;
@@ -20,6 +21,7 @@ export async function ProductsGrid({
   min?: string;
   max?: string;
   page?: string;
+  view?: string;
 }) {
   const perPage = 12;
   const currentPage = Math.max(1, Number(page) || 1);
@@ -58,16 +60,25 @@ export async function ProductsGrid({
           ? { views: "desc" as const }
           : { createdAt: "desc" as const };
 
-  const [total, products] = await Promise.all([
+  const [total, rawProducts] = await Promise.all([
     db.product.count({ where }),
     db.product.findMany({
       where,
-      include: { images: { select: { url: true }, orderBy: { sortOrder: "asc" } } },
+      include: {
+        images: { select: { url: true }, orderBy: { sortOrder: "asc" } },
+        reviews: { select: { rating: true }, where: { status: "APPROVED" } },
+      },
       orderBy,
       skip: (currentPage - 1) * perPage,
       take: perPage,
     }),
   ]);
+
+  const products = rawProducts.map((p) => ({
+    ...p,
+    _avg: { rating: p.reviews.length > 0 ? p.reviews.reduce((s, r) => s + r.rating, 0) / p.reviews.length : null },
+    _count: { reviews: p.reviews.length },
+  }));
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
@@ -78,6 +89,7 @@ export async function ProductsGrid({
     if (sort) p.set("sort", sort);
     if (min) p.set("min", min);
     if (max) p.set("max", max);
+    if (view && view !== "grid") p.set("view", view);
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     return p.toString();
   };
@@ -108,10 +120,16 @@ export async function ProductsGrid({
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">
           محصولی مطابق جستجوی شما یافت نشد
         </div>
+      ) : view === "list" ? (
+        <div className="space-y-3">
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} viewMode="list" />
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} viewMode="grid" />
           ))}
         </div>
       )}

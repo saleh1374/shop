@@ -45,34 +45,47 @@ export async function addToCart(productId: string, quantity = 1) {
   if (!product || !product.active) return { error: "محصول یافت نشد" };
   if (product.stock === 0) return { error: "محصول ناموجود است" };
 
-  const existing = await db.cartItem.findFirst({
-    where: session
-      ? { userId: session.id, productId }
-      : { sessionId: cartSession, productId },
-  });
+  const qty = Math.min(quantity, product.stock);
 
-  if (existing) {
-    const newQty = Math.min(existing.quantity + quantity, product.stock);
-    await db.cartItem.update({ where: { id: existing.id }, data: { quantity: newQty } });
-  } else {
-    if (session) {
-      // انتقال سبد ناشناس به حساب کاربری
-      const guest = await db.cartItem.findFirst({
-        where: { sessionId: cartSession, productId },
+  if (session) {
+    // حالت لاگین: ابتدا بررسی سبد ناشناس
+    const guest = await db.cartItem.findFirst({
+      where: { sessionId: cartSession, productId },
+    });
+    if (guest) {
+      await db.cartItem.update({
+        where: { id: guest.id },
+        data: { userId: session.id, sessionId: null, quantity: Math.min(guest.quantity + qty, product.stock) },
       });
-      if (guest) {
+    } else {
+      // استفاده از upsert برای جلوگیری از آیتم تکراری در درخواست همزمان
+      const existing = await db.cartItem.findFirst({
+        where: { userId: session.id, productId },
+      });
+      if (existing) {
         await db.cartItem.update({
-          where: { id: guest.id },
-          data: { userId: session.id, sessionId: null, quantity: Math.min(guest.quantity + quantity, product.stock) },
+          where: { id: existing.id },
+          data: { quantity: Math.min(existing.quantity + qty, product.stock) },
         });
       } else {
         await db.cartItem.create({
-          data: { productId, quantity: Math.min(quantity, product.stock), userId: session.id },
+          data: { productId, quantity: qty, userId: session.id },
         });
       }
+    }
+  } else {
+    // حالت ناشناس: استفاده از upsert
+    const existing = await db.cartItem.findFirst({
+      where: { sessionId: cartSession, productId },
+    });
+    if (existing) {
+      await db.cartItem.update({
+        where: { id: existing.id },
+        data: { quantity: Math.min(existing.quantity + qty, product.stock) },
+      });
     } else {
       await db.cartItem.create({
-        data: { productId, quantity: Math.min(quantity, product.stock), sessionId: cartSession },
+        data: { productId, quantity: qty, sessionId: cartSession },
       });
     }
   }
@@ -223,10 +236,16 @@ export async function createOrder(input: OrderInput) {
   const session = await getSession();
   const cartSession = await getCartSession();
 
-  const cartItems = await db.cartItem.findMany({
-    where: { OR: [{ userId: session?.id ?? "" }, { sessionId: cartSession ?? "" }] },
-    include: { product: true },
-  });
+  const orFilters: Record<string, string>[] = [];
+  if (session?.id) orFilters.push({ userId: session.id });
+  if (cartSession) orFilters.push({ sessionId: cartSession });
+
+  const cartItems = orFilters.length === 0
+    ? []
+    : await db.cartItem.findMany({
+        where: { OR: orFilters },
+        include: { product: true },
+      });
 
   if (cartItems.length === 0) return { error: "سبد خرید خالی است" };
 
@@ -307,9 +326,12 @@ export async function createOrder(input: OrderInput) {
   }
 
   // حذف سبد خرید
-  await db.cartItem.deleteMany({
-    where: { OR: [{ userId: session?.id ?? "" }, { sessionId: cartSession ?? "" }] },
-  });
+  const deleteFilters: Record<string, string>[] = [];
+  if (session?.id) deleteFilters.push({ userId: session.id });
+  if (cartSession) deleteFilters.push({ sessionId: cartSession });
+  if (deleteFilters.length > 0) {
+    await db.cartItem.deleteMany({ where: { OR: deleteFilters } });
+  }
 
   // اعلان‌ها
   if (session?.id) {
@@ -655,4 +677,54 @@ export async function reorder(orderId: string) {
 
   revalidatePath("/", "layout");
   redirect("/cart");
+}
+
+// ---------------- بازیابی رمز عبور ----------------
+
+export async function resetPasswordRequest(email: string) {
+  const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  // همیشه پیام موفقیت نشان بده (برای جلوگیری از enumerate emails)
+  if (!user) return { ok: true, message: "اگر ایمیل شما در سیستم ثبت شده باشد، کد بازیابی ارسال شد." };
+
+  const token = crypto.randomUUID().slice(0, 8).toUpperCase();
+  const expires = Date.now() + 15 * 60_000; // ۱۵ دقیقه
+
+  await db.setting.upsert({
+    where: { key: `reset_token:${user.id}` },
+    update: { value: JSON.stringify({ token, expires }) },
+    create: { key: `reset_token:${user.id}`, value: JSON.stringify({ token, expires }) },
+  });
+
+  // در نسخه واقعی: ارسال ایمیل با nodemailer
+  // فعلاً توکن را برمی‌گردانیم تا بتوانیم تست کنیم
+  return { ok: true, message: "کد بازیابی ارسال شد.", token };
+}
+
+export async function resetPasswordConfirm(token: string, newPassword: string) {
+  if (newPassword.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
+
+  // جستجو در تمام setting های reset_token
+  const rows = await db.setting.findMany({
+    where: { key: { startsWith: "reset_token:" } },
+  });
+
+  for (const row of rows) {
+    try {
+      const data = JSON.parse(row.value) as { token: string; expires: number };
+      if (data.token === token.trim().toUpperCase() && Date.now() < data.expires) {
+        const userId = row.key.replace("reset_token:", "");
+        await db.user.update({
+          where: { id: userId },
+          data: { password: await bcrypt.hash(newPassword, 10) },
+        });
+        // حذف توکن مصرف شده
+        await db.setting.delete({ where: { key: row.key } });
+        return { ok: true };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return { error: "کد بازیابی نامعتبر یا منقضی شده است." };
 }

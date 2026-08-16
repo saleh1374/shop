@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { IRAN_PROVINCES } from "@/lib/iran";
 
 const selectCls =
@@ -21,11 +21,6 @@ export default function ProvinceCityFields({
 }) {
   const [prov, setProv] = useState(province);
   const [c, setC] = useState(city);
-
-  useEffect(() => {
-    setProv(province);
-    setC(city);
-  }, [province, city]);
 
   const entry = IRAN_PROVINCES.find((p) => p.name === prov);
   const cities = entry ? entry.cities : [];

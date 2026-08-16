@@ -62,6 +62,12 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center text-sm text-slate-500 mt-5">
+          <Link
+            href="/account/reset-password"
+            className="text-indigo-600 font-bold hover:text-indigo-800 block mb-2"
+          >
+            رمز عبور را فراموش کرده‌اید؟
+          </Link>
           حساب ندارید؟{" "}
           <Link
             href="/account/register"

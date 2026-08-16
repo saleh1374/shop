@@ -31,6 +31,9 @@ yarn-error.log*
 server.log
 server.err.log
 
+# uploads (user data, not code)
+/public/uploads/products/*
+
 # env files — فایل تنظیمات محلی هرگز در گیت نرود (حاوی رمز دیتابیس و رازها)
 .env*
 !.env.example

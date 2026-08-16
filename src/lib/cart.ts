@@ -49,23 +49,29 @@ export async function getCart() {
   const store = await cookies();
   const sessionId = store.get(CART_COOKIE)?.value;
 
-  const items = await db.cartItem.findMany({
-    where: { OR: [{ userId: session?.id ?? "" }, { sessionId: sessionId ?? "" }] },
-    include: {
-      product: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          price: true,
-          salePrice: true,
-          stock: true,
-          images: { select: { url: true }, orderBy: { sortOrder: "asc" } },
+  const orFilters: Record<string, string>[] = [];
+  if (session?.id) orFilters.push({ userId: session.id });
+  if (sessionId) orFilters.push({ sessionId });
+
+  const items = orFilters.length === 0
+    ? []
+    : await db.cartItem.findMany({
+        where: { OR: orFilters },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              price: true,
+              salePrice: true,
+              stock: true,
+              images: { select: { url: true }, orderBy: { sortOrder: "asc" } },
+            },
+          },
         },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+        orderBy: { createdAt: "desc" },
+      });
 
   const subtotal = items.reduce(
     (sum, i) => sum + cartItemPrice(i.product) * i.quantity,

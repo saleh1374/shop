@@ -43,12 +43,27 @@ export default async function Footer() {
         </div>
 
         <div>
+          <h3 className="font-bold text-white mb-3">قانونی</h3>
+          <ul className="space-y-2 text-sm">
+            <li><Link href="/about" className="hover:text-white transition">درباره ما</Link></li>
+            <li><Link href="/terms" className="hover:text-white transition">قوانین و مقررات</Link></li>
+            <li><Link href="/privacy" className="hover:text-white transition">حریم خصوصی</Link></li>
+          </ul>
+        </div>
+
+        <div>
           <h3 className="font-bold text-white mb-3">اعتماد شما</h3>
           {enamadCode ? (
-            <div
-              className="bg-white rounded-lg p-2 w-28 h-28 flex items-center justify-center"
-              dangerouslySetInnerHTML={{ __html: enamadCode }}
-            />
+            <div className="bg-white rounded-lg p-2 w-28 h-28 flex items-center justify-center text-xs text-slate-500">
+              <a
+                href={`https://enamad.ir/website/${encodeURIComponent(enamadCode)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 font-bold hover:underline"
+              >
+                نماد اعتماد الکترونیکی
+              </a>
+            </div>
           ) : (
             <div className="bg-slate-800 border border-dashed border-slate-600 rounded-lg p-4 text-xs text-slate-500 leading-5">
               جایگاه نماد اعتماد الکترونیکی (اینماد)

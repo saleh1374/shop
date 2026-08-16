@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
+import OrdersCsvButton from "@/components/orders-csv-button";
 
 export const dynamic = "force-dynamic";
 
@@ -66,15 +67,18 @@ export default async function AdminOrdersPage({
             </span>
           </Link>
         ))}
-        <form className="mr-auto flex gap-2">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="شماره / نام / موبایل..."
-            className="h-10 rounded-xl border border-slate-200 px-3 text-sm w-56"
-          />
-          <button className="h-10 px-4 rounded-xl bg-slate-800 text-white text-sm font-bold">جستجو</button>
-        </form>
+        <div className="mr-auto flex gap-2">
+          <OrdersCsvButton orders={orders} />
+          <form className="flex gap-2">
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="شماره / نام / موبایل..."
+              className="h-10 rounded-xl border border-slate-200 px-3 text-sm w-56"
+            />
+            <button className="h-10 px-4 rounded-xl bg-slate-800 text-white text-sm font-bold">جستجو</button>
+          </form>
+        </div>
       </div>
 
       <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 text-sm mb-4 flex items-center gap-4 flex-wrap">
