@@ -17,9 +17,6 @@ import { notify, notifyAdmins } from "@/lib/notify";
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_MS = 5 * 60_000;
 
-// Rate limiting برای ریست رمز (حافظه سراسری در یک پروسه)
-const resetAttempts = new Map<string, { count: number; resetAt: number }>();
-
 async function getLoginState(email: string): Promise<{ count: number; lockedUntil: number }> {
   const row = await db.setting.findUnique({ where: { key: `login_fail:${email}` } });
   if (!row) return { count: 0, lockedUntil: 0 };
@@ -220,7 +217,7 @@ export async function loginUser(formData: FormData) {
       return { error: `تلاش‌های ناموفق زیاد بود. لطفاً ۵ دقیقه دیگر دوباره امتحان کنید.` };
     }
     await setLoginState(email, { count, lockedUntil: 0 });
-    return { error: `ایمیل یا رمز عبور اشتباه است (${LOGIN_MAX_ATTEMPTS - count} تلاش باقی مانده)` };
+    return { error: "ایمیل یا رمز عبور اشتباه است" };
   }
 
   await setLoginState(email, { count: 0, lockedUntil: 0 });
@@ -620,17 +617,17 @@ export async function updateProfile(formData: FormData) {
 export async function changePassword(formData: FormData) {
   const session = await requireUser();
   const current = String(formData.get("current") ?? "");
-  const next = String(formData.get("next") ?? "");
+  const newPassword = String(formData.get("next") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
-  if (next.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
-  if (next !== confirm) return { error: "تکرار رمز جدید مطابقت ندارد" };
+  if (newPassword.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
+  if (newPassword !== confirm) return { error: "تکرار رمز جدید مطابقت ندارد" };
 
   const user = await db.user.findUnique({ where: { id: session.id } });
   if (!user) return { error: "کاربر یافت نشد" };
   if (!(await bcrypt.compare(current, user.password))) return { error: "رمز فعلی اشتباه است" };
 
-  await db.user.update({ where: { id: session.id }, data: { password: await bcrypt.hash(next, 10) } });
+  await db.user.update({ where: { id: session.id }, data: { password: await bcrypt.hash(newPassword, 10) } });
   return { ok: true };
 }
 
@@ -724,61 +721,83 @@ export async function resetPasswordRequest(email: string) {
   const token = crypto.randomUUID().replace(/-/g, "").slice(0, 32).toUpperCase();
   const expires = Date.now() + 15 * 60_000; // ۱۵ دقیقه
 
+  // ذخیره با کلید مستقیم توکن برای جستجوی O(1)
   await db.setting.upsert({
-    where: { key: `reset_token:${user.id}` },
-    update: { value: JSON.stringify({ token, expires }) },
-    create: { key: `reset_token:${user.id}`, value: JSON.stringify({ token, expires }) },
+    where: { key: `reset_token:${token}` },
+    update: { value: JSON.stringify({ userId: user.id, expires }) },
+    create: { key: `reset_token:${token}`, value: JSON.stringify({ userId: user.id, expires }) },
   });
+
+  // حذف توکن‌های قبلی این کاربر
+  const oldTokens = await db.setting.findMany({
+    where: { key: { startsWith: "reset_token:" } },
+  });
+  for (const row of oldTokens) {
+    try {
+      const data = JSON.parse(row.value) as { userId: string };
+      if (data.userId === user.id) {
+        await db.setting.delete({ where: { key: row.key } });
+      }
+    } catch { /* skip */ }
+  }
 
   // ارسال ایمیل با کد بازیابی
   const { sendEmail, resetPasswordEmailHtml } = await import("@/lib/email");
   await sendEmail(user.email, "بازیابی رمز عبور", resetPasswordEmailHtml(user.name, token));
 
-  // در نسخه واقعی: ارسال ایمیل با nodemailer
-  // فعلاً فقط پیام موفقیت برمی‌گردانیم (توکن هرگز به مرورگر فرستاده نمی‌شود)
   return { ok: true, message: "کد بازیابی ارسال شد." };
 }
 
 export async function resetPasswordConfirm(token: string, newPassword: string) {
   if (newPassword.length < 6) return { error: "رمز جدید حداقل ۶ حرف باشد" };
 
-  // Rate limiting (حافظه سراسری در یک پروسه)
+  const trimmedToken = token.trim().toUpperCase();
+
+  // Rate limiting بر اساس توکن — ذخیره در دیتابیس
   const RATE_LIMIT = 5;
   const RATE_WINDOW = 60_000;
-  const key = `reset_attempt:${token.slice(0, 8)}`;
+  const rateKey = `reset_rate:${trimmedToken.slice(0, 16)}`;
+  const rateRow = await db.setting.findUnique({ where: { key: rateKey } });
   const now = Date.now();
-  const entry = resetAttempts.get(key);
-  if (entry && now <= entry.resetAt && entry.count >= RATE_LIMIT) {
+  let rateData = { count: 0, resetAt: now + RATE_WINDOW };
+  if (rateRow) {
+    try {
+      rateData = JSON.parse(rateRow.value);
+    } catch { /* reset */ }
+  }
+  if (now <= rateData.resetAt && rateData.count >= RATE_LIMIT) {
     return { error: "تعداد تلاش‌ها زیاد است. لطفاً ۱ دقیقه صبر کنید." };
   }
-  if (!entry || now > entry.resetAt) {
-    resetAttempts.set(key, { count: 1, resetAt: now + RATE_WINDOW });
+  if (now > rateData.resetAt) {
+    rateData = { count: 1, resetAt: now + RATE_WINDOW };
   } else {
-    entry.count++;
+    rateData.count++;
   }
-
-  // جستجو در تمام setting های reset_token
-  const rows = await db.setting.findMany({
-    where: { key: { startsWith: "reset_token:" } },
+  await db.setting.upsert({
+    where: { key: rateKey },
+    update: { value: JSON.stringify(rateData) },
+    create: { key: rateKey, value: JSON.stringify(rateData) },
   });
 
-  for (const row of rows) {
-    try {
-      const data = JSON.parse(row.value) as { token: string; expires: number };
-      if (data.token === token.trim().toUpperCase() && Date.now() < data.expires) {
-        const userId = row.key.replace("reset_token:", "");
-        await db.user.update({
-          where: { id: userId },
-          data: { password: await bcrypt.hash(newPassword, 10) },
-        });
-        // حذف توکن مصرف شده
-        await db.setting.delete({ where: { key: row.key } });
-        return { ok: true };
-      }
-    } catch {
-      continue;
-    }
-  }
+  // جستجوی O(1) با کلید مستقیم توکن
+  const row = await db.setting.findUnique({ where: { key: `reset_token:${trimmedToken}` } });
+  if (!row) return { error: "کد بازیابی نامعتبر یا منقضی شده است." };
 
-  return { error: "کد بازیابی نامعتبر یا منقضی شده است." };
+  try {
+    const data = JSON.parse(row.value) as { userId: string; expires: number };
+    if (Date.now() > data.expires) {
+      await db.setting.delete({ where: { key: row.key } });
+      return { error: "کد بازیابی منقضی شده است." };
+    }
+    await db.user.update({
+      where: { id: data.userId },
+      data: { password: await bcrypt.hash(newPassword, 10) },
+    });
+    await db.setting.delete({ where: { key: row.key } });
+    // حذف rate limit
+    await db.setting.delete({ where: { key: rateKey } }).catch(() => {});
+    return { ok: true };
+  } catch {
+    return { error: "کد بازیابی نامعتبر است." };
+  }
 }

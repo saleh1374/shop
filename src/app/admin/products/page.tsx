@@ -72,7 +72,6 @@ export default async function AdminProductsPage({
 
       <BulkActionsWrapper
         ids={products.map((p) => p.id)}
-        action="product"
       />
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

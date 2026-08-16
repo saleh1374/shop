@@ -38,7 +38,6 @@ export default async function CheckoutPage() {
         <div className="lg:col-span-2 space-y-6">
           <CheckoutForm
             subtotal={subtotal}
-            isLoggedIn={!!user}
             user={user}
             addresses={addresses}
             initialCode={couponCode}

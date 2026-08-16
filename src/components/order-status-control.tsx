@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateOrderStatus } from "@/app/admin/actions";
-import { ORDER_STATUS, toFa } from "@/lib/format";
+import { ORDER_STATUS } from "@/lib/format";
 
 export default function OrderStatusControl({ orderId, status }: { orderId: string; status: string }) {
   const router = useRouter();

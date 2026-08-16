@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveCategory } from "@/app/admin/actions";
-import { EditIcon, PlusIcon } from "@/components/icons";
+import { EditIcon } from "@/components/icons";
 
 export default function CategoryForm({
   categories,

@@ -1,7 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ChevronIcon } from "@/components/icons";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "قوانین و مقررات",
+  description: "قوانین و مقررات فروشگاه نمونه",
+};
 
 export default async function TermsPage() {
   return (

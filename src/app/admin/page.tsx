@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   await requireAdmin();
 
-  const [orders, paidOrders, products, users, lowStock, recentOrders, pendingReviews, todayOrders, todayRevenue, pendingPaidOrders] =
+  const [, paidOrders, products, users, lowStock, recentOrders, pendingReviews, todayOrders, todayRevenue, pendingPaidOrders] =
     await Promise.all([
       db.order.count(),
       db.order.aggregate({ _sum: { total: true }, where: { status: { in: ["PAID", "SHIPPED", "DELIVERED"] } } }),

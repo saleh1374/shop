@@ -11,7 +11,6 @@ export default function NotificationItem({
   id,
   title,
   message,
-  type,
   read,
   createdAt,
   orderId,

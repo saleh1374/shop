@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const PUBLIC_ACCOUNT = ["/account/login", "/account/register", "/account/reset-password"];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = request.cookies.get("session")?.value;
 

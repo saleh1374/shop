@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
-  const safeExt = ext === "jpeg" ? "jpg" : ext;
+  const safeExt = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext) ? ext === "jpeg" ? "jpg" : ext : "png";
   const filename = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${safeExt}`;
   const dir = join(process.cwd(), "public", "uploads", "products");
   mkdirSync(dir, { recursive: true });

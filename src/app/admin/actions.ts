@@ -245,8 +245,11 @@ export async function saveSettings(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-export async function deleteAllData() {
+export async function deleteAllData(confirmation: string) {
   await guard();
+  if (confirmation !== "DELETE_ALL") {
+    return { error: "برای تأیید حذف کامل، عبارت DELETE_ALL را تایپ کنید" };
+  }
   await db.$transaction([
     db.orderItem.deleteMany(),
     db.order.deleteMany(),

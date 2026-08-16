@@ -2,7 +2,7 @@ import { getSettings, setting } from "@/lib/settings";
 import { db } from "@/lib/db";
 import type { MetadataRoute } from "next";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR: هر ۱ ساعت ری‌ولیدیت
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let baseUrl = "http://localhost:3000";

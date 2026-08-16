@@ -23,7 +23,7 @@ async function getTransporter() {
 export async function sendEmail(to: string, subject: string, html: string) {
   const transporter = await getTransporter();
   if (!transporter) {
-    console.warn("[email] SMTP not configured, skipping email to", to);
+    console.warn("[email] SMTP not configured, skipping email");
     return false;
   }
   const s = await getSettings();

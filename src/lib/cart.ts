@@ -11,6 +11,7 @@ export async function getOrCreateCartSession(): Promise<string> {
     id = crypto.randomUUID();
     store.set(CART_COOKIE, id, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,

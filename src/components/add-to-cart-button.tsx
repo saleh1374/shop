@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addToCart } from "@/app/actions";
 import { CartIcon, CheckIcon } from "@/components/icons";
-import { toFa } from "@/lib/format";
 
 export default function AddToCartButton({
   productId,

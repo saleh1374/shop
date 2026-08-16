@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { toFa, formatDateTime } from "@/lib/format";
+import { toFa } from "@/lib/format";
 import { markNotificationsRead } from "@/app/actions";
 import NotificationItem from "@/components/notification-item";
 import { BellIcon, CheckIcon } from "@/components/icons";

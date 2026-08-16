@@ -2,8 +2,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { db } from "@/lib/db";
 import { getSettings, setting } from "@/lib/settings";
-import { toFa, toToman } from "@/lib/format";
+import { toFa } from "@/lib/format";
 import ProductCard from "@/components/product-card";
+import JsonLd from "@/components/json-ld";
 import { TruckIcon, ShieldIcon, PhoneIcon, CreditCardIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,18 @@ export default async function HomePage() {
 
   return (
     <div>
+      <JsonLd data={{
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: storeName,
+        url: setting(settings, "store_url", "http://localhost:3000"),
+        potentialAction: {
+          "@type": "SearchAction",
+          target: `${setting(settings, "store_url", "http://localhost:3000")}/products?q={search_term_string}`,
+          "query-input": "required name=search_term_string",
+        },
+      }} />
+
       {/* بنر اصلی */}
       <section className="bg-gradient-to-l from-indigo-600 via-indigo-500 to-violet-500 text-white">
         <div className="max-w-7xl mx-auto px-4 py-14 text-center">

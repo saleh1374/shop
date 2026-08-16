@@ -1,7 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ChevronIcon } from "@/components/icons";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "حریم خصوصی",
+  description: "سیاست حفظ حریم خصوصی فروشگاه نمونه",
+};
 
 export default async function PrivacyPage() {
   return (

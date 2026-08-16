@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { createOrder, checkDiscount } from "@/app/actions";
-import { toFa, toToman } from "@/lib/format";
+import { toToman } from "@/lib/format";
 import { TagIcon } from "@/components/icons";
 import ProvinceCityFields from "@/components/province-city-fields";
 
 export default function CheckoutForm({
   subtotal,
-  isLoggedIn,
   user,
   addresses = [],
   initialCode = "",
@@ -19,7 +17,6 @@ export default function CheckoutForm({
   freeThreshold = 0,
 }: {
   subtotal: number;
-  isLoggedIn: boolean;
   user: { name?: string; email?: string; phone?: string | null } | null;
   addresses?: {
     id: string;
@@ -37,7 +34,6 @@ export default function CheckoutForm({
   freeShipping?: boolean;
   freeThreshold?: number;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [discountCode, setDiscountCode] = useState(initialCode);

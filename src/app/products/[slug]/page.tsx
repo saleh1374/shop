@@ -37,7 +37,6 @@ export async function generateMetadata({
     },
   });
   if (!product || !product.active) return {};
-  const price = product.salePrice && product.salePrice > 0 ? product.salePrice : product.price;
   return {
     title: product.name,
     description: product.description ?? undefined,

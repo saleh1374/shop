@@ -67,7 +67,6 @@ export default function BulkActionsWrapper({ ids }: Props) {
         const selectAll = document.querySelector(".bulk-toggle") as HTMLInputElement | null;
         if (selectAll) selectAll.checked = false;
       }}
-      action="product"
     />
   );
 }

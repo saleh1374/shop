@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toFa, toToman } from "@/lib/format";
 import { cartItemPrice } from "@/lib/price";
+import { addToCart } from "@/app/actions";
 import { HeartIcon, EyeIcon, StarIcon, CartIcon } from "@/components/icons";
 
 type ProductForCard = {
@@ -33,9 +35,24 @@ export default function ProductCard({
   const hasSale = product.salePrice && product.salePrice > 0 && product.salePrice < product.price;
   const images = product.images;
   const [hovered, setHovered] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const currentImage = hovered && images.length > 1 ? images[1].url : images[0]?.url;
   const avgRating = product._avg?.rating ?? 0;
   const reviewCount = product._count?.reviews ?? 0;
+
+  function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    startTransition(async () => {
+      const res = await addToCart(product.id, 1);
+      if (res?.error) {
+        alert(res.error);
+      } else {
+        router.refresh();
+      }
+    });
+  }
 
   if (viewMode === "list") {
     return (
@@ -133,9 +150,13 @@ export default function ProductCard({
         {/* دکمه افزودن به سبد */}
         {product.stock > 0 && (
           <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
-            <button className="w-full h-9 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-700 transition shadow-lg">
+            <button
+              onClick={handleAddToCart}
+              disabled={pending}
+              className="w-full h-9 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-700 transition shadow-lg disabled:opacity-60"
+            >
               <CartIcon className="w-4 h-4" />
-              افزودن به سبد
+              {pending ? "در حال افزودن..." : "افزودن به سبد"}
             </button>
           </div>
         )}

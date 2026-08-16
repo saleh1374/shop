@@ -1,8 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getSettings, setting } from "@/lib/settings";
 import { ChevronIcon } from "@/components/icons";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "درباره ما",
+  description: "درباره فروشگاه نمونه بیشتر بدانید",
+};
 
 export default async function AboutPage() {
   const s = await getSettings();
