@@ -122,7 +122,9 @@ async function main() {
 
   await page.fill('input[name="name"]', "مدیر فروشگاه");
   await page.fill('input[name="phone"]', "09121234567");
-  await page.fill('textarea[name="address"]', "تهران، خیابان تست");
+  await page.selectOption('select[name="province"]', { label: "تهران" });
+  await page.selectOption('select[name="city"]', { label: "تهران" });
+  await page.fill('textarea[name="address"]', "خیابان تست، پلاک ۱");
   await page.locator('button:has-text("ثبت سفارش و پرداخت")').click();
   await page.waitForURL("**/payment/**", { timeout: 25000 });
   await page.locator('button:has-text("پرداخت آزمایشی")').click();
@@ -210,8 +212,8 @@ async function main() {
   await page.fill('input[name="title"]', "منزل پدری");
   await page.fill('input[name="receiverName"]', "علی رضایی");
   await page.fill('input[name="receiverPhone"]', "09121234567");
-  await page.fill('input[name="province"]', "اصفهان");
-  await page.fill('input[name="city"]', "اصفهان");
+  await page.selectOption('select[name="province"]', { label: "اصفهان" });
+  await page.selectOption('select[name="city"]', { label: "اصفهان" });
   await page.fill('textarea[name="address"]', "خیابان چهارباغ، کوچه نارنج، پلاک ۷");
   await page.fill('input[name="postalCode"]', "1234567890");
   await page.locator('button:has-text("ذخیره آدرس")').click();
@@ -236,6 +238,8 @@ async function main() {
   await page.locator('a:has-text("ادامه فرآیند خرید")').click();
   await page.waitForURL("**/checkout", { timeout: 15000 });
   await page.locator('button:has-text("پرداخت در محل")').click();
+  await page.locator("select").first().selectOption({ index: 1 });
+  await page.waitForTimeout(500);
   await page.locator('button:has-text("ثبت سفارش")').click();
   await page.waitForURL("**/payment/result**", { timeout: 25000 });
   ok("COD order -> result", page.url().includes("status=cod"));

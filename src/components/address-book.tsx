@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveAddress, deleteAddress, setDefaultAddress } from "@/app/actions";
 import { MapPinIcon, PlusIcon, XIcon, EditIcon, TrashIcon, CheckIcon } from "@/components/icons";
+import ProvinceCityFields from "@/components/province-city-fields";
 
 type AddressInput = {
   id?: string;
@@ -139,26 +140,10 @@ export default function AddressBook({
                 dir="ltr"
               />
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">استان *</label>
-              <input
-                name="province"
-                defaultValue={editing !== "new" ? editing.province : ""}
-                required
-                className={inputCls}
-                placeholder="مثال: تهران"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">شهر *</label>
-              <input
-                name="city"
-                defaultValue={editing !== "new" ? editing.city : ""}
-                required
-                className={inputCls}
-                placeholder="مثال: تهران"
-              />
-            </div>
+            <ProvinceCityFields
+              province={editing !== "new" ? editing.province : ""}
+              city={editing !== "new" ? editing.city : ""}
+            />
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-600 mb-1.5">آدرس کامل *</label>
               <textarea

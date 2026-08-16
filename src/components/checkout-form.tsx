@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createOrder, checkDiscount } from "@/app/actions";
 import { toFa, toToman } from "@/lib/format";
 import { TagIcon } from "@/components/icons";
+import ProvinceCityFields from "@/components/province-city-fields";
 
 export default function CheckoutForm({
   subtotal,
@@ -48,6 +49,8 @@ export default function CheckoutForm({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
     email: user?.email ?? "",
+    province: "",
+    city: "",
     address: "",
     note: "",
   });
@@ -59,7 +62,9 @@ export default function CheckoutForm({
       ...f,
       name: addr.receiverName,
       phone: addr.receiverPhone,
-      address: `${addr.province}، ${addr.city}، ${addr.address}${addr.postalCode ? ` — کد پستی: ${addr.postalCode}` : ""}`,
+      province: addr.province,
+      city: addr.city,
+      address: addr.address,
     }));
   }
 
@@ -82,7 +87,7 @@ export default function CheckoutForm({
         name: form.name,
         phone: form.phone,
         email: form.email,
-        address: form.address,
+        address: [form.province, form.city, form.address].filter(Boolean).join("، "),
         note: form.note,
         discountCode,
         paymentMethod,
@@ -160,15 +165,22 @@ export default function CheckoutForm({
               dir="ltr"
             />
           </div>
+          <ProvinceCityFields
+            province={form.province}
+            city={form.city}
+            onChange={(province, city) =>
+              setForm((f) => ({ ...f, province, city }))
+            }
+          />
           <div className="sm:col-span-2">
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">آدرس</label>
+            <label className="block text-xs font-bold text-slate-600 mb-1.5">آدرس (خیابان، کوچه، پلاک، واحد)</label>
             <textarea
               name="address"
               value={form.address}
               onChange={(e) => setField("address", e.target.value)}
               rows={2}
               className={`${inputCls} h-auto py-2.5 resize-none`}
-              placeholder="استان، شهر، خیابان، پلاک، واحد"
+              placeholder="مثال: خیابان ولیعصر، کوچه نارنج، پلاک ۱۲، واحد ۵"
             />
           </div>
           <div className="sm:col-span-2">
