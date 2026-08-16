@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { toFa } from "@/lib/format";
 import SearchBox from "@/components/search-box";
-import { CartIcon, UserIcon, MenuIcon, HeartIcon } from "@/components/icons";
+import { CartIcon, UserIcon, MenuIcon, HeartIcon, BellIcon } from "@/components/icons";
 
 export default async function Header() {
   const [settings, session] = await Promise.all([getSettings(), getSession()]);
@@ -27,6 +27,10 @@ export default async function Header() {
 
   const wishlistCount = session
     ? await db.wishlistItem.count({ where: { userId: session.id } })
+    : 0;
+
+  const unreadNotifications = session
+    ? await db.notification.count({ where: { userId: session.id, read: false } })
     : 0;
 
   return (
@@ -60,6 +64,21 @@ export default async function Header() {
               <UserIcon className="w-5 h-5" />
               <span className="hidden sm:inline">{session ? "حساب من" : "ورود / ثبت‌نام"}</span>
             </Link>
+            {session && (
+              <Link
+                href="/account/notifications"
+                className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition"
+                aria-label="اعلان‌ها"
+              >
+                <BellIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">اعلان‌ها</span>
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -left-1 min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">
+                    {toFa(unreadNotifications)}
+                  </span>
+                )}
+              </Link>
+            )}
             {session && (
               <Link
                 href="/account/wishlist"

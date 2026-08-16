@@ -11,6 +11,11 @@ export default function CheckoutForm({
   isLoggedIn,
   user,
   addresses = [],
+  initialCode = "",
+  initialDiscount = 0,
+  shippingFee = 0,
+  freeShipping = false,
+  freeThreshold = 0,
 }: {
   subtotal: number;
   isLoggedIn: boolean;
@@ -25,12 +30,19 @@ export default function CheckoutForm({
     address: string;
     postalCode: string | null;
   }[];
+  initialCode?: string;
+  initialDiscount?: number;
+  shippingFee?: number;
+  freeShipping?: boolean;
+  freeThreshold?: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [discountCode, setDiscountCode] = useState("");
-  const [discount, setDiscount] = useState<{ ok: boolean; amount: number; description?: string; error?: string }>({ ok: true, amount: 0 });
+  const [discountCode, setDiscountCode] = useState(initialCode);
+  const [discount, setDiscount] = useState<{ ok: boolean; amount: number; description?: string; error?: string }>(
+    initialDiscount > 0 ? { ok: true, amount: initialDiscount } : { ok: true, amount: 0 }
+  );
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
   const [form, setForm] = useState({
     name: user?.name ?? "",
@@ -79,7 +91,7 @@ export default function CheckoutForm({
     });
   }
 
-  const total = subtotal - (discount.ok ? discount.amount : 0);
+  const total = subtotal - (discount.ok ? discount.amount : 0) + shippingFee;
   const inputCls =
     "w-full h-11 rounded-xl border border-slate-200 px-3 text-sm bg-white transition";
 
@@ -256,8 +268,17 @@ export default function CheckoutForm({
         )}
         <div className="flex items-center justify-between mb-1 text-sm text-slate-600">
           <span>هزینه ارسال</span>
-          <span className="text-emerald-600 font-bold">رایگان</span>
+          {freeShipping ? (
+            <span className="text-emerald-600 font-bold">رایگان</span>
+          ) : (
+            <span className="font-bold text-slate-800">{toToman(shippingFee)}</span>
+          )}
         </div>
+        {!freeShipping && freeThreshold > 0 && (
+          <div className="text-[11px] text-slate-400 mb-1">
+            {toToman(Math.max(0, freeThreshold - subtotal))} دیگر بخرید تا ارسال رایگان شود
+          </div>
+        )}
         <div className="border-t border-dashed border-slate-200 my-3" />
         <div className="flex items-center justify-between">
           <div>

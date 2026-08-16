@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
 import OrderActions from "@/components/order-actions";
-import { ChevronIcon } from "@/components/icons";
+import { ChevronIcon, InvoiceIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +84,12 @@ export default async function OrderDetailPage({
         <div className="mt-5">
           <OrderActions orderId={order.id} status={order.status} />
         </div>
+        <Link
+          href={`/invoice/${order.orderNumber}`}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 mt-4"
+        >
+          <InvoiceIcon className="w-4 h-4" /> مشاهده فاکتور رسمی
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -128,7 +134,7 @@ export default async function OrderDetailPage({
           {order.discount > 0 && (
             <div className="flex justify-between text-emerald-600"><span>تخفیف</span><span className="font-bold">− {toToman(order.discount)}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-slate-500">هزینه ارسال</span><span className="font-bold text-emerald-600">رایگان</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">هزینه ارسال</span><span className={`font-bold ${order.shippingCost === 0 ? "text-emerald-600" : ""}`}>{order.shippingCost === 0 ? "رایگان" : toToman(order.shippingCost)}</span></div>
           <div className="border-t border-dashed border-slate-200 my-3" />
           <div className="flex justify-between">
             <span className="font-black text-slate-800">مبلغ نهایی</span>

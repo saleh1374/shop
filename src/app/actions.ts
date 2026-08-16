@@ -2,13 +2,38 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, destroySession, getSession, requireUser } from "@/lib/auth";
-import { getOrCreateCartSession, getCartSession } from "@/lib/cart";
+import { getOrCreateCartSession, getCartSession, getCart } from "@/lib/cart";
 import { applyDiscount } from "@/lib/discount";
 import { getActiveGateway } from "@/lib/payment";
+import { shippingFee } from "@/lib/shipping";
+import { notify, notifyAdmins } from "@/lib/notify";
+
+// محدودیت تلاش ورود (ذخیره در دیتابیس — برای چند فرآیند هم کار می‌کند)
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 5 * 60_000;
+
+async function getLoginState(email: string): Promise<{ count: number; lockedUntil: number }> {
+  const row = await db.setting.findUnique({ where: { key: `login_fail:${email}` } });
+  if (!row) return { count: 0, lockedUntil: 0 };
+  try {
+    return JSON.parse(row.value) as { count: number; lockedUntil: number };
+  } catch {
+    return { count: 0, lockedUntil: 0 };
+  }
+}
+
+async function setLoginState(email: string, state: { count: number; lockedUntil: number }) {
+  await db.setting.upsert({
+    where: { key: `login_fail:${email}` },
+    update: { value: JSON.stringify(state) },
+    create: { key: `login_fail:${email}`, value: JSON.stringify(state) },
+  });
+}
 
 // ---------------- سبد خرید ----------------
 
@@ -143,6 +168,7 @@ export async function registerUser(formData: FormData) {
   }
 
   await createSession(user.id, user.role);
+  await notify(user.id, "خوش آمدید 👋", "ثبت‌نام شما با موفقیت انجام شد. از امکانات حساب کاربری لذت ببرید!", "WELCOME");
   redirect("/account");
 }
 
@@ -150,10 +176,22 @@ export async function loginUser(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
+  const state = await getLoginState(email);
+  if (state.lockedUntil > Date.now())
+    return { error: `تلاش‌های ناموفق زیاد بود. لطفاً ۵ دقیقه دیگر دوباره امتحان کنید.` };
+
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return { error: "ایمیل یا رمز عبور اشتباه است" };
+    const count = state.count + 1;
+    if (count >= LOGIN_MAX_ATTEMPTS) {
+      await setLoginState(email, { count: 0, lockedUntil: Date.now() + LOGIN_LOCK_MS });
+      return { error: `تلاش‌های ناموفق زیاد بود. لطفاً ۵ دقیقه دیگر دوباره امتحان کنید.` };
+    }
+    await setLoginState(email, { count, lockedUntil: 0 });
+    return { error: `ایمیل یا رمز عبور اشتباه است (${LOGIN_MAX_ATTEMPTS - count} تلاش باقی مانده)` };
   }
+
+  await setLoginState(email, { count: 0, lockedUntil: 0 });
 
   const cartSession = await getCartSession();
   if (cartSession) {
@@ -217,7 +255,8 @@ export async function createOrder(input: OrderInput) {
 
   const discount = await applyDiscount(parsed.data.discountCode ?? "", subtotal);
   if (!discount.ok) return { error: discount.error };
-  const total = subtotal - discount.amount;
+  const ship = await shippingFee(subtotal);
+  const total = subtotal - discount.amount + ship.fee;
 
   // شماره سفارش (اتمی — بدون رقابت بین دو سفارش همزمان)
   const rows = await db.$queryRaw<{ value: string }[]>`
@@ -236,6 +275,7 @@ export async function createOrder(input: OrderInput) {
       status: isCod ? "PAID" : "PENDING",
       subtotal,
       discount: discount.amount,
+      shippingCost: ship.fee,
       total,
       customerName: parsed.data.name,
       customerPhone: parsed.data.phone,
@@ -270,6 +310,23 @@ export async function createOrder(input: OrderInput) {
   await db.cartItem.deleteMany({
     where: { OR: [{ userId: session?.id ?? "" }, { sessionId: cartSession ?? "" }] },
   });
+
+  // اعلان‌ها
+  if (session?.id) {
+    await notify(
+      session.id,
+      "سفارش شما ثبت شد ✅",
+      `سفارش #${orderNumber} با موفقیت ثبت شد. وضعیت آن را از حساب کاربری دنبال کنید.`,
+      "ORDER",
+      order.id
+    );
+  }
+  await notifyAdmins(
+    "سفارش جدید 🛒",
+    `سفارش #${orderNumber} از ${parsed.data.name} ثبت شد (${total.toLocaleString("fa-IR")} تومان).`,
+    "ORDER",
+    order.id
+  );
 
   // کاهش موجودی (برای پرداخت در محل همین حالا، برای آنلاین بعد از پرداخت)
   if (isCod) {
@@ -317,6 +374,16 @@ export async function payOrder(orderId: string) {
     }
   }
 
+  if (order.userId) {
+    await notify(
+      order.userId,
+      "پرداخت تأیید شد 💳",
+      `پرداخت سفارش #${order.orderNumber} با موفقیت انجام شد.`,
+      "STATUS",
+      order.id
+    );
+  }
+
   revalidatePath("/", "layout");
   redirect(`/payment/result?order=${order.orderNumber}&status=success`);
 }
@@ -324,6 +391,54 @@ export async function payOrder(orderId: string) {
 export async function checkDiscount(code: string, subtotal: number) {
   const result = await applyDiscount(code, subtotal);
   return result;
+}
+
+// ---------------- کد تخفیف در سبد ----------------
+
+const COUPON_COOKIE = "coupon_code";
+const COUPON_MAX_AGE = 60 * 60 * 24 * 7;
+
+export async function applyCartCoupon(code: string) {
+  const { items, subtotal } = await getCart();
+  if (items.length === 0) return { error: "سبد خرید خالی است" };
+  const result = await applyDiscount(code, subtotal);
+  if (!result.ok) return { error: result.error };
+  const store = await cookies();
+  store.set(COUPON_COOKIE, code.trim().toUpperCase(), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: COUPON_MAX_AGE,
+  });
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+  return { ok: true, amount: result.amount, description: result.description };
+}
+
+export async function clearCartCoupon() {
+  const store = await cookies();
+  store.delete(COUPON_COOKIE);
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+  return { ok: true };
+}
+
+// ---------------- اعلان‌ها ----------------
+
+export async function markNotificationsRead() {
+  const session = await requireUser();
+  await db.notification.updateMany({ where: { userId: session.id, read: false }, data: { read: true } });
+  revalidatePath("/account/notifications");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteNotification(id: string) {
+  const session = await requireUser();
+  await db.notification.deleteMany({ where: { id, userId: session.id } });
+  revalidatePath("/account/notifications");
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 // ---------------- علاقه‌مندی‌ها ----------------

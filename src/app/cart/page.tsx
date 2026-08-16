@@ -1,13 +1,26 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getCart } from "@/lib/cart";
 import { toFa, toToman } from "@/lib/format";
+import { applyDiscount } from "@/lib/discount";
+import { shippingFee } from "@/lib/shipping";
 import CartItems from "@/components/cart-items";
+import CartCoupon from "@/components/cart-coupon";
 import { CartIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
 export default async function CartPage() {
   const { items, subtotal, count } = await getCart();
+  const store = await cookies();
+  const couponCode = store.get("coupon_code")?.value ?? "";
+
+  const coupon = couponCode ? await applyDiscount(couponCode, subtotal) : null;
+  const discountAmount = coupon?.ok ? coupon.amount : 0;
+  const couponError = coupon && !coupon.ok ? coupon.error : "";
+
+  const ship = await shippingFee(subtotal);
+  const total = subtotal - discountAmount + ship.fee;
 
   if (items.length === 0) {
     return (
@@ -39,6 +52,7 @@ export default async function CartPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <CartItems items={items} />
+          <CartCoupon initialCode={couponCode} discountAmount={discountAmount} error={couponError} />
         </div>
 
         <div className="lg:sticky lg:top-24 h-fit">
@@ -48,14 +62,29 @@ export default async function CartPage() {
               <span>جمع کالاها ({toFa(count)})</span>
               <span className="font-bold text-slate-800">{toToman(subtotal)}</span>
             </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-sm mb-2 text-emerald-600">
+                <span>تخفیف ({couponCode})</span>
+                <span className="font-bold">− {toToman(discountAmount)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm mb-2 text-slate-600">
               <span>هزینه ارسال</span>
-              <span className="font-bold text-emerald-600">رایگان</span>
+              {ship.free ? (
+                <span className="font-bold text-emerald-600">رایگان</span>
+              ) : (
+                <span className="font-bold text-slate-800">{toToman(ship.fee)}</span>
+              )}
             </div>
+            {!ship.free && ship.threshold > 0 && (
+              <div className="text-[11px] text-slate-400 mb-2">
+                {toToman(Math.max(0, ship.threshold - subtotal))} دیگر بخرید تا ارسال رایگان شود
+              </div>
+            )}
             <div className="border-t border-dashed border-slate-200 my-4" />
             <div className="flex items-center justify-between">
               <span className="font-black text-slate-800">مبلغ قابل پرداخت</span>
-              <span className="text-xl font-black text-indigo-700">{toToman(subtotal)}</span>
+              <span className="text-xl font-black text-indigo-700">{toToman(total)}</span>
             </div>
             <Link
               href="/checkout"

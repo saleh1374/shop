@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDate, orderStatusLabel } from "@/lib/format";
-import { MoneyIcon, ChartIcon, BoxIcon } from "@/components/icons";
+import { MoneyIcon, ChartIcon, BoxIcon, UserIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function AdminReportsPage() {
   since.setHours(0, 0, 0, 0);
   since.setDate(since.getDate() - 13);
 
-  const [orders, daily, topProducts, statusCounts] = await Promise.all([
+  const [orders, daily, topProducts, statusCounts, monthly, topCustomers] = await Promise.all([
     db.order.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true, total: true, status: true } }),
     db.order.findMany({
       where: { createdAt: { gte: since }, status: { not: "CANCELLED" } },
@@ -26,7 +26,25 @@ export default async function AdminReportsPage() {
       take: 10,
     }),
     db.order.groupBy({ by: ["status"], _count: true }),
+    db.order.findMany({
+      where: { status: { not: "CANCELLED" }, createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1) } },
+      select: { createdAt: true, total: true },
+    }),
+    db.order.groupBy({
+      by: ["userId"],
+      where: { status: { not: "CANCELLED" }, userId: { not: null } },
+      _sum: { total: true },
+      _count: true,
+      orderBy: { _sum: { total: "desc" } },
+      take: 5,
+    }),
   ]);
+
+  const customerIds = topCustomers.map((c) => c.userId).filter(Boolean) as string[];
+  const customers = customerIds.length
+    ? await db.user.findMany({ where: { id: { in: customerIds } }, select: { id: true, name: true, email: true } })
+    : [];
+  const customerMap = new Map(customers.map((c) => [c.id, c]));
 
   const productIds = topProducts.map((p) => p.productId).filter(Boolean) as string[];
   const products = productIds.length
@@ -63,6 +81,22 @@ export default async function AdminReportsPage() {
   const avgCart = totalOrders > 0 ? Math.round(revenue / totalOrders) : 0;
   const maxTotal = Math.max(...days.map((d) => d.total), 1);
 
+  const monthMap = new Map<string, number>();
+  for (const o of monthly) {
+    const key = o.createdAt.toISOString().slice(0, 7);
+    monthMap.set(key, (monthMap.get(key) ?? 0) + o.total);
+  }
+  const months: { label: string; total: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
+    const key = d.toISOString().slice(0, 7);
+    months.push({
+      label: new Intl.DateTimeFormat("fa-IR", { month: "short", year: "numeric" }).format(d),
+      total: monthMap.get(key) ?? 0,
+    });
+  }
+  const maxMonth = Math.max(...months.map((m) => m.total), 1);
+
   const statusTotal = statusCounts.reduce((s, c) => s + c._count, 0);
   const statusOrder = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"];
   const barColors: Record<string, string> = {
@@ -92,6 +126,26 @@ export default async function AdminReportsPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="text-xs text-slate-400 font-bold">میانگین سبد خرید</div>
           <div className="text-xl font-black text-slate-800 mt-2">{toToman(avgCart)}</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 className="font-black text-slate-800 mb-4 flex items-center gap-2">
+          <ChartIcon className="w-5 h-5 text-indigo-600" /> فروش ۱۲ ماه اخیر
+        </h2>
+        <div className="flex items-end gap-1.5 h-36">
+          {months.map((m) => (
+            <div key={m.label} className="flex-1 flex flex-col items-center gap-1.5 min-w-0 group">
+              <div className="text-[10px] font-bold text-slate-500 opacity-0 group-hover:opacity-100 transition">
+                {m.total > 0 ? toToman(m.total) : ""}
+              </div>
+              <div
+                className={`w-full rounded-t-lg transition-all ${m.total > 0 ? "bg-gradient-to-t from-indigo-600 to-violet-400" : "bg-slate-100"}`}
+                style={{ height: `${Math.max((m.total / maxMonth) * 100, m.total > 0 ? 4 : 2)}%` }}
+              />
+              <div className="text-[10px] text-slate-400 truncate w-full text-center">{m.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -173,6 +227,40 @@ export default async function AdminReportsPage() {
               );
             })}
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 lg:col-span-2">
+          <h2 className="font-black text-slate-800 mb-4 flex items-center gap-2">
+            <UserIcon className="w-5 h-5 text-indigo-600" /> مشتریان برتر
+          </h2>
+          {topCustomers.length === 0 ? (
+            <div className="text-sm text-slate-400 text-center py-8">داده‌ای موجود نیست</div>
+          ) : (
+            <div className="space-y-2">
+              {topCustomers.map((c, i) => {
+                const cu = c.userId ? customerMap.get(c.userId) : null;
+                return (
+                  <div key={c.userId ?? i} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 text-xs font-black flex items-center justify-center shrink-0">
+                        {toFa(i + 1)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-700 truncate">{cu?.name ?? "کاربر حذف‌شده"}</div>
+                        {cu?.email && (
+                          <div className="text-[11px] text-slate-400 truncate" dir="ltr">{cu.email}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-left shrink-0">
+                      <div className="text-xs font-extrabold text-indigo-700">{toToman(c._sum.total ?? 0)}</div>
+                      <div className="text-[10px] text-slate-400">{toFa(c._count)} سفارش</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

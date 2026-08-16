@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { toFa, toToman, formatDate } from "@/lib/format";
 import { getSession } from "@/lib/auth";
@@ -11,6 +12,37 @@ import WishlistButton from "@/components/wishlist-button";
 import { StarIcon, TruckIcon, ShieldIcon, ChevronIcon, CheckIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  let slug = rawSlug;
+  try {
+    slug = decodeURIComponent(rawSlug);
+  } catch {}
+  const product = await db.product.findUnique({
+    where: { slug },
+    include: {
+      images: { select: { url: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+      category: { select: { name: true } },
+    },
+  });
+  if (!product || !product.active) return {};
+  const price = product.salePrice && product.salePrice > 0 ? product.salePrice : product.price;
+  return {
+    title: product.name,
+    description: product.description ?? undefined,
+    openGraph: {
+      title: product.name,
+      description: product.description ?? undefined,
+      images: product.images[0] ? [{ url: product.images[0].url }] : undefined,
+    },
+    keywords: [product.name, product.category?.name].filter(Boolean).join("، "),
+  };
+}
 
 export default async function ProductPage({
   params,

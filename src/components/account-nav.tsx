@@ -9,18 +9,20 @@ import {
   MapPinIcon,
   CommentIcon,
   SettingsIcon,
+  BellIcon,
 } from "@/components/icons";
 
 const links = [
   { href: "/account", label: "داشبورد", icon: HomeIcon },
   { href: "/account/orders", label: "سفارش‌های من", icon: BoxIcon },
   { href: "/account/wishlist", label: "علاقه‌مندی‌ها", icon: HeartIcon },
+  { href: "/account/notifications", label: "اعلان‌ها", icon: BellIcon },
   { href: "/account/addresses", label: "آدرس‌ها", icon: MapPinIcon },
   { href: "/account/reviews", label: "نظرات من", icon: CommentIcon },
   { href: "/account/profile", label: "تنظیمات پروفایل", icon: SettingsIcon },
 ];
 
-export default function AccountNav({ wishlistCount }: { wishlistCount: number }) {
+export default function AccountNav({ wishlistCount, unread }: { wishlistCount: number; unread: number }) {
   const pathname = usePathname();
 
   return (
@@ -42,6 +44,11 @@ export default function AccountNav({ wishlistCount }: { wishlistCount: number })
             {l.href === "/account/wishlist" && wishlistCount > 0 && (
               <span className="mr-auto min-w-5 h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[11px] flex items-center justify-center">
                 {wishlistCount}
+              </span>
+            )}
+            {l.href === "/account/notifications" && unread > 0 && (
+              <span className="mr-auto min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] flex items-center justify-center">
+                {unread}
               </span>
             )}
           </Link>

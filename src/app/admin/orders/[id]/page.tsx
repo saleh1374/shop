@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { toFa, toToman, formatDateTime, orderStatusLabel } from "@/lib/format";
 import OrderStatusControl from "@/components/order-status-control";
 import PrintButton from "@/components/print-button";
+import { InvoiceIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,12 @@ export default async function AdminOrderDetailPage({
         <h1 className="text-2xl font-black text-slate-800">سفارش #{toFa(order.orderNumber)}</h1>
         <div className="flex items-center gap-3 no-print">
           <PrintButton />
+          <Link
+            href={`/invoice/${order.orderNumber}`}
+            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition"
+          >
+            <InvoiceIcon className="w-4 h-4" /> فاکتور رسمی
+          </Link>
           <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${st.color}`}>{st.label}</span>
           <OrderStatusControl orderId={order.id} status={order.status} />
         </div>
@@ -101,7 +108,7 @@ export default async function AdminOrderDetailPage({
               {order.discount > 0 && (
                 <div className="flex justify-between text-emerald-600"><span>تخفیف</span><span className="font-bold">− {toToman(order.discount)}</span></div>
               )}
-              <div className="flex justify-between"><span className="text-slate-500">هزینه ارسال</span><span className="font-bold text-emerald-600">رایگان</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">هزینه ارسال</span><span className={`font-bold ${order.shippingCost === 0 ? "text-emerald-600" : ""}`}>{order.shippingCost === 0 ? "رایگان" : toToman(order.shippingCost)}</span></div>
               <div className="flex justify-between">
                 <span className="font-black">مبلغ نهایی</span>
                 <span className="text-xl font-black text-indigo-700">{toToman(order.total)}</span>

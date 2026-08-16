@@ -14,7 +14,10 @@ export default async function AccountLayout({
 }) {
   const session = await requireUser();
   const user = await getCurrentUser();
-  const wishlistCount = await db.wishlistItem.count({ where: { userId: session.id } });
+  const [wishlistCount, unreadNotifications] = await Promise.all([
+    db.wishlistItem.count({ where: { userId: session.id } }),
+    db.notification.count({ where: { userId: session.id, read: false } }),
+  ]);
   const initial = (user?.name ?? "کاربر").charAt(0);
 
   return (
@@ -32,7 +35,7 @@ export default async function AccountLayout({
               </div>
             </div>
 
-            <AccountNav wishlistCount={wishlistCount} />
+            <AccountNav wishlistCount={wishlistCount} unread={unreadNotifications} />
 
             <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
               {user?.role === "ADMIN" && (

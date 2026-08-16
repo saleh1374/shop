@@ -78,6 +78,7 @@ const PRODUCTS: { name: string; cat: string; price: number; sale?: number; stock
   { name: "پاوربانک شیائومی 20000mAh", cat: "گجت‌ها", price: 1_650_000, sale: 1_390_000, stock: 45, desc: "پاوربانک ۲۰۰۰۰ میلی‌آمپری با شارژ سریع 22.5 وات و دو خروجی." },
   { name: "کیبورد مکانیکال ردراگون", cat: "قطعات", price: 2_850_000, stock: 17, desc: "کیبورد مکانیکال با سوئیچ قرمز، نورپردازی RGB و بدنه آلومینیومی." },
   { name: "ماوس گیمینگ لاجیتک G502", cat: "قطعات", price: 3_200_000, stock: 19, desc: "ماوس گیمینگ با سنسور ۲۵۶۰۰ DPI، ۱۱ دکمه برنامه‌پذیر و نور RGB." },
+  { name: "کنسول بازی پلی‌استیشن 5", cat: "گجت‌ها", price: 32_000_000, stock: 0, desc: "کنسول بازی نسل نهم سونی با درایو بلوری، کنترلر DualSense و گارانتی ۱۲ ماهه. فعلاً موجود نیست." },
 ];
 
 async function main() {
@@ -86,6 +87,9 @@ async function main() {
   await db.order.deleteMany();
   await db.cartItem.deleteMany();
   await db.review.deleteMany();
+  await db.notification.deleteMany();
+  await db.wishlistItem.deleteMany();
+  await db.address.deleteMany();
   await db.productImage.deleteMany();
   await db.product.deleteMany();
   await db.category.deleteMany();
@@ -151,12 +155,20 @@ async function main() {
       password: await bcrypt.hash("user123", 10),
     },
   });
-  const sampleProducts = await db.product.findMany({ take: 5 });
+  const sampleProducts = await db.product.findMany({ take: 8 });
+  const comments = [
+    "کیفیت عالی داشت، ارسال هم سریع بود. خرید از این فروشگاه رو پیشنهاد می‌کنم.",
+    "دقیقاً مطابق توضیحات بود. ممنون از تیم فروشگاه.",
+    "قیمت مناسب و بسته‌بندی خوب. راضی بودم.",
+    "کیفیت قابل قبوله ولی بسته‌بندی می‌تونست بهتر باشه.",
+    "بعد از دو هفته استفاده، راضی‌ام. ارزش خرید داره.",
+    "ارسال سریع و پشتیبانی پاسخگو. خرید بعدی هم از اینجا انجام می‌دم.",
+  ];
   for (const [idx, product] of sampleProducts.entries()) {
     await db.review.create({
       data: {
-        rating: 4 + (idx % 2),
-        comment: "کیفیت عالی داشت، ارسال هم سریع بود. خرید از این فروشگاه رو پیشنهاد می‌کنم.",
+        rating: 3 + (idx % 3),
+        comment: comments[idx % comments.length],
         status: "APPROVED",
         userId: user.id,
         productId: product.id,
@@ -164,8 +176,8 @@ async function main() {
     });
     await db.review.create({
       data: {
-        rating: 5,
-        comment: "دقیقاً مطابق توضیحات بود. ممنون از تیم فروشگاه.",
+        rating: 4 + (idx % 2),
+        comment: "کیفیت عالی داشت، ارسال هم سریع بود. خرید از این فروشگاه رو پیشنهاد می‌کنم.",
         status: "APPROVED",
         userId: admin.id,
         productId: product.id,
@@ -215,6 +227,15 @@ async function main() {
     ],
   });
 
+  console.log("ساخت اعلان‌های نمونه...");
+  await db.notification.createMany({
+    data: [
+      { userId: user.id, title: "خوش آمدید 👋", message: "ثبت‌نام شما با موفقیت انجام شد. از امکانات حساب کاربری لذت ببرید!", type: "WELCOME", read: false },
+      { userId: user.id, title: "ارسال رایگان 🚚", message: "با خرید بالای ۳ میلیون تومان، هزینه ارسال رایگان است.", type: "INFO", read: true },
+      { userId: admin.id, title: "خوش آمدید 👋", message: "به پنل مدیریت فروشگاه خوش آمدید.", type: "WELCOME", read: false },
+    ],
+  });
+
   console.log("ساخت تنظیمات فروشگاه...");
   await db.setting.createMany({
     data: [
@@ -227,6 +248,8 @@ async function main() {
       { key: "telegram", value: "" },
       { key: "enamad_code", value: "" },
       { key: "zarinpal_merchant", value: "" },
+      { key: "shipping_fee", value: "35000" },
+      { key: "free_shipping_threshold", value: "3000000" },
     ],
   });
 

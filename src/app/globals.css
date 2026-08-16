@@ -36,3 +36,14 @@ textarea:focus {
   border-color: #4f46e5 !important;
   box-shadow: 0 0 0 3px rgb(79 70 229 / 0.12);
 }
+
+@media print {
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

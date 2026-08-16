@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, getSession } from "@/lib/auth";
 import { toSlug } from "@/lib/format";
 import { setSetting } from "@/lib/settings";
+import { notify } from "@/lib/notify";
 import type { OrderStatus } from "@/generated/prisma/enums";
 
 async function guard() {
@@ -125,7 +126,25 @@ export async function updateOrderStatus(orderId: string, status: string) {
   await guard();
   const allowed: OrderStatus[] = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"];
   if (!allowed.includes(status as OrderStatus)) return { error: "وضعیت نامعتبر است" };
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order) return { error: "سفارش یافت نشد" };
   await db.order.update({ where: { id: orderId }, data: { status: status as OrderStatus } });
+  if (order.userId) {
+    const labels: Record<string, string> = {
+      PENDING: "در انتظار پرداخت",
+      PAID: "پرداخت شده",
+      SHIPPED: "ارسال شده 🚚",
+      DELIVERED: "تحویل شده ✅",
+      CANCELLED: "لغو شده",
+    };
+    await notify(
+      order.userId,
+      "به‌روزرسانی سفارش 📦",
+      `وضعیت سفارش #${order.orderNumber} به «${labels[status] ?? status}» تغییر کرد.`,
+      "STATUS",
+      order.id
+    );
+  }
   revalidatePath("/admin/orders");
   revalidatePath("/", "layout");
   return { ok: true };
