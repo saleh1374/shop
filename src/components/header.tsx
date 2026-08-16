@@ -17,12 +17,16 @@ export default async function Header() {
   });
 
   const cartSession = await getCartSession();
-  const cartCount = cartSession
-    ? await db.cartItem.aggregate({
-        _sum: { quantity: true },
-        where: { sessionId: cartSession },
-      })
-    : null;
+  const orFilters: { userId?: string; sessionId?: string }[] = [];
+  if (session?.id) orFilters.push({ userId: session.id });
+  if (cartSession) orFilters.push({ sessionId: cartSession });
+  const cartCount =
+    orFilters.length > 0
+      ? await db.cartItem.aggregate({
+          _sum: { quantity: true },
+          where: { OR: orFilters },
+        })
+      : null;
   const count = cartCount?._sum.quantity ?? 0;
 
   const wishlistCount = session
